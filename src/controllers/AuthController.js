@@ -4,86 +4,36 @@ const { createOrUpdateBusiness } = require("../services/businessService");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 
-// const registerUser = async (req, res) => {
-//   try {
-//     const { mobile, password, businessName, address, lat, long } = req.body;
-
-//     if (!mobile || !password) {
-//       return res
-//         .status(400)
-//         .send({ msg: "Please Enter the mobile Number and Password" });
-//     }
-
-//     const existingUser = await userModel.findOne({ mobile });
-//     if (existingUser) {
-//       return res.status(400).send({ msg: "User Already Registered" });
-//     }
-
-//     const newUserData = { ...req.body };
-
-//     if (password && password.trim() !== "") {
-//       const salt = await bcrypt.genSalt(10);
-//       const hashedPassword = await bcrypt.hash(password, salt);
-//       newUserData.password = hashedPassword;
-//     } else {
-//       delete newUserData.password; // Remove password if it's not provided or blank
-//     }
-
-//     const newUser = new userModel(newUserData);
-//     await newUser.save();
-
-//     if (!newUser) {
-//       return res.status(400).send({ msg: "error while registering" });
-//     }
-
-//     return res
-//       .status(200)
-//       .send({ msg: "User Registered sucessfully", data: newUser });
-//   } catch (error) {
-//     return res.status(500).send({ msg: error.message, data: null });
-//   }
-// };
-
 const registerUser = async (req, res) => {
   try {
-    const {
-      firstName,
-      middleName,
-      lastName,
-      email,
-      mobile,
-      password,
-      role,
-      sponsorId,
-      businessName,
-      address,
-      lat,
-      long,
-      categories,
-    } = req.body;
+    const { mobile, password, businessName, address, lat, long } = req.body;
 
-    // Step 1: Create user
-    const newUser = await userModel.create({
-      firstName,
-      middleName,
-      lastName,
-      email,
-      mobile,
-      password,
-      role,
-      sponsorId,
-    });
+    if (!mobile || !password) {
+      return res
+        .status(400)
+        .send({ msg: "Please Enter the mobile Number and Password" });
+    }
 
-    // Step 2: If shopkeeper & business details present, create business
-    if (role === "shopkeeper" && businessName && address && lat && long) {
-      await createOrUpdateBusiness({
-        businessName,
-        address,
-        lat,
-        long,
-        categories,
-        shopkeeperId: newUser._id, // Link business with user
-      });
+    const existingUser = await userModel.findOne({ mobile });
+    if (existingUser) {
+      return res.status(400).send({ msg: "User Already Registered" });
+    }
+
+    const newUserData = { ...req.body };
+
+    if (password && password.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      newUserData.password = hashedPassword;
+    } else {
+      delete newUserData.password; // Remove password if it's not provided or blank
+    }
+
+    const newUser = new userModel(newUserData);
+    await newUser.save();
+
+    if (!newUser) {
+      return res.status(400).send({ msg: "error while registering" });
     }
 
     return res
@@ -92,15 +42,65 @@ const registerUser = async (req, res) => {
   } catch (error) {
     return res.status(500).send({ msg: error.message, data: null });
   }
-  // } catch (error) {
-  //   console.error("Error in registerUser:", error);
-  //   res.status(500).json({
-  //     success: false,
-  //     message: "Something went wrong",
-  //     error: error.message,
-  //   });
-  // }
 };
+
+// const registerUser = async (req, res) => {
+//   try {
+//     const {
+//       firstName,
+//       middleName,
+//       lastName,
+//       email,
+//       mobile,
+//       password,
+//       role,
+//       sponsorId,
+//       businessName,
+//       address,
+//       lat,
+//       long,
+//       categories,
+//     } = req.body;
+
+//     // Step 1: Create user
+//     const newUser = await userModel.create({
+//       firstName,
+//       middleName,
+//       lastName,
+//       email,
+//       mobile,
+//       password,
+//       role,
+//       sponsorId,
+//     });
+
+//     // Step 2: If shopkeeper & business details present, create business
+//     if (role === "shopkeeper" && businessName && address && lat && long) {
+//       await createOrUpdateBusiness({
+//         businessName,
+//         address,
+//         lat,
+//         long,
+//         categories,
+//         shopkeeperId: newUser._id, // Link business with user
+//       });
+//     }
+
+//     return res
+//       .status(200)
+//       .send({ msg: "User Registered sucessfully", data: newUser });
+//   } catch (error) {
+//     return res.status(500).send({ msg: error.message, data: null });
+//   }
+//   // } catch (error) {
+//   //   console.error("Error in registerUser:", error);
+//   //   res.status(500).json({
+//   //     success: false,
+//   //     message: "Something went wrong",
+//   //     error: error.message,
+//   //   });
+//   // }
+// };
 
 const login = async (req, res) => {
   try {
