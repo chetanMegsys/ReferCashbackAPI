@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 const userModel = require("./../models/userModel");
+const businessModel = require("../models/businessModel");
 
 const getUser = async (req, res) => {
   try {
@@ -18,12 +19,30 @@ const getUser = async (req, res) => {
         .send({ msg: "Users fetched successfully", data: users });
     } else {
       const user = await userModel.findById(id);
+
       if (!user) {
         return res.status(404).send({ msg: "User not found", data: null });
       }
+      let userData = user;
+      if (user.role === "shopkeeper") {
+        const business = await businessModel
+          .findOne({ shopkeeperId: user._id })
+          .populate("categories");
+        // ✅ convert to plain JS object for easy modification
+
+        if (business && business.location && business.location.coordinates) {
+          business.location = {
+            latitude: business.location.coordinates[1],
+            longitude: business.location.coordinates[0],
+          };
+        }
+
+        userData = { ...user.toObject(), business };
+      }
+
       return res
         .status(200)
-        .send({ msg: "User fetched successfully", data: user });
+        .send({ msg: "User fetched successfully", data: userData });
     }
   } catch (error) {
     return res.status(500).send({ msg: error.message });

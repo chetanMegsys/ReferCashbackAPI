@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
     orderId: {
-      type: Number,
+      type: String,
       unique: true,
     },
     status: {
@@ -40,15 +40,28 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Pre-save hook to auto-generate orderId
 orderSchema.pre("save", async function (next) {
   if (this.isNew) {
-    const counter = await Counter.findOneAndUpdate(
-      { name: "orderId" },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-    this.orderId = counter.seq;
+    let unique = false;
+    let newId;
+
+    while (!unique) {
+      // Generate 6-character alphanumeric
+      newId = [...Array(6)]
+        .map(
+          () =>
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[
+              Math.floor(Math.random() * 36)
+            ]
+        )
+        .join("");
+
+      // Check if it already exists
+      const existing = await this.constructor.findOne({ orderId: newId });
+      if (!existing) unique = true;
+    }
+
+    this.orderId = newId;
   }
   next();
 });

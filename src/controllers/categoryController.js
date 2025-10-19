@@ -18,7 +18,6 @@ const addCategory = async (req, res) => {
 
 const getCategory = async (req, res) => {
   const { id } = req.body;
-
   if (!id || id === "") {
     try {
       const getCategoryData = await categoryModel.find();

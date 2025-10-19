@@ -46,4 +46,33 @@ const businessSchema = new mongoose.Schema({
 
 businessSchema.index({ location: "2dsphere" });
 
+// Helper function to generate random 5-character alphanumeric ID
+function generateBusinessId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let id = "";
+  for (let i = 0; i < 5; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
+// Pre-save hook to auto-generate unique businessId
+businessSchema.pre("save", async function (next) {
+  if (this.businessId) return next(); // already set
+
+  let unique = false;
+  while (!unique) {
+    const newId = generateBusinessId();
+    const existing = await mongoose.models.businesses.findOne({
+      businessId: newId,
+    });
+    if (!existing) {
+      this.businessId = newId;
+      unique = true;
+    }
+  }
+
+  next();
+});
+
 module.exports = mongoose.model("businesses", businessSchema);

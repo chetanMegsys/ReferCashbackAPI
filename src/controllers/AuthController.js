@@ -3,46 +3,75 @@ const otpModel = require("../models/otpModel");
 const { createOrUpdateBusiness } = require("../services/businessService");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const businessModel = require("../models/businessModel");
 
-const registerUser = async (req, res) => {
-  try {
-    const { mobile, password, businessName, address, lat, long } = req.body;
+// const registerUser = async (req, res) => {
+//   try {
+//     const {
+//       mobile,
+//       password,
+//       businessName,
+//       address,
+//       lat,
+//       long,
+//       role,
+//       referalMobileNumber,
+//     } = req.body;
 
-    if (!mobile || !password) {
-      return res
-        .status(400)
-        .send({ msg: "Please Enter the mobile Number and Password" });
-    }
+//     if (!mobile || !password) {
+//       return res
+//         .status(400)
+//         .send({ msg: "Please Enter the mobile Number and Password" });
+//     }
 
-    const existingUser = await userModel.findOne({ mobile });
-    if (existingUser) {
-      return res.status(400).send({ msg: "User Already Registered" });
-    }
+//     const existingUser = await userModel.findOne({ mobile });
+//     if (existingUser) {
+//       return res.status(400).send({ msg: "User Already Registered" });
+//     }
 
-    const newUserData = { ...req.body };
+//     const referralUser = await userModel.findOne({
+//       mobile: referalMobileNumber,
+//     });
 
-    if (password && password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      newUserData.password = hashedPassword;
-    } else {
-      delete newUserData.password; // Remove password if it's not provided or blank
-    }
+//     if (!referralUser) {
+//       return res.status(400).json({ msg: "Referral user does not exist." });
+//     }
+//     const newUserData = { ...req.body, referalUser: referralUser?._id };
 
-    const newUser = new userModel(newUserData);
-    await newUser.save();
+//     if (password && password.trim() !== "") {
+//       const salt = await bcrypt.genSalt(10);
+//       const hashedPassword = await bcrypt.hash(password, salt);
+//       newUserData.password = hashedPassword;
+//     } else {
+//       delete newUserData.password; // Remove password if it's not provided or blank
+//     }
 
-    if (!newUser) {
-      return res.status(400).send({ msg: "error while registering" });
-    }
+//     const newUser = new userModel(newUserData);
 
-    return res
-      .status(200)
-      .send({ msg: "User Registered sucessfully", data: newUser });
-  } catch (error) {
-    return res.status(500).send({ msg: error.message, data: null });
-  }
-};
+//     if (role === "shopkeeper" && businessName) {
+//       const newBusiness = new businessModel({
+//         ...newUserData,
+//         shopkeeperId: newUser?._id,
+//         location: {
+//           type: "Point",
+//           coordinates: [Number(long), Number(lat)], // GeoJSON order: [lng, lat]
+//         },
+//         // omit if not provided
+//       });
+//       await newBusiness.save();
+//     }
+//     await newUser.save();
+//     if (!newUser) {
+//       return res.status(400).send({ msg: "error while registering" });
+//     }
+
+//     return res
+//       .status(200)
+//       .send({ msg: "User Registered sucessfully", data: newUser });
+//   } catch (error) {
+//     return res.status(500).send({ msg: error.message, data: null });
+//   }
+// };
 
 // const registerUser = async (req, res) => {
 //   try {
@@ -101,6 +130,116 @@ const registerUser = async (req, res) => {
 //   //   });
 //   // }
 // };
+
+
+const registerUser = async (req, res) => {
+  try {
+    const {
+      mobile,
+      password,
+      businessName,
+      address,
+      lat,
+      long,
+      role,
+      referalMobileNumber,
+      firstName,
+      middleName,
+      lastName,
+      email,
+    } = req.body;
+
+    // 1️⃣ Basic validation
+    if (!mobile || !password) {
+      return res
+        .status(400)
+        .send({ msg: "Please enter mobile number and password" });
+    }
+
+    // 2️⃣ Check if user already exists
+    const existingUser = await userModel.findOne({ mobile });
+    if (existingUser) {
+      return res.status(400).send({ msg: "User already registered" });
+    }
+
+    // 3️⃣ Check referral exists
+    const referralUser = await userModel.findOne({ mobile: referalMobileNumber });
+    if (!referralUser) {
+      return res.status(400).json({ msg: "Referral user does not exist." });
+    }
+
+    // 4️⃣ Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 5️⃣ BFS: find next available parent under referral tree
+    const findNextAvailableParent = async (rootUser) => {
+      const queue = [rootUser];
+
+      while (queue.length) {
+        const current = queue.shift();
+
+        // Get children of current user
+        const children = await userModel.find({ parentId: current._id });
+
+        if (children.length < 3) {
+          return current; // Found a parent with available slot
+        }
+
+        // Add children to queue for BFS
+        queue.push(...children);
+      }
+
+      return rootUser; // fallback (should not happen)
+    };
+
+    const parentUser = await findNextAvailableParent(referralUser);
+
+    // 6️⃣ Prepare new user data
+    const newUserData = {
+      firstName,
+      middleName,
+      lastName,
+      email,
+      mobile,
+      password: hashedPassword,
+      role,
+      referalUser: referralUser._id, // direct referrer
+      parentId: parentUser._id,      // tree parent
+      levelId: parentUser.levelId + 1, // depth in tree
+    };
+
+    // 7️⃣ Save new user
+    const newUser = new userModel(newUserData);
+    await newUser.save();
+
+    // 8️⃣ If shopkeeper, create business
+    if (role === "shopkeeper" && businessName) {
+      const newBusiness = new businessModel({
+        businessName,
+        address,
+        shopkeeperId: newUser._id,
+        location: {
+          type: "Point",
+          coordinates: [Number(long), Number(lat)],
+        },
+      });
+      await newBusiness.save();
+    }
+
+    // ✅ Respond
+    res.status(200).send({
+      msg: "User registered successfully",
+      data: newUser,
+    });
+  } catch (error) {
+    console.error("Error registering user:", error);
+    res.status(500).send({ msg: error.message, data: null });
+  }
+};
+
+
+
 
 const login = async (req, res) => {
   try {

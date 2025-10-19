@@ -1,6 +1,9 @@
 const { mongoose } = require("mongoose");
 const orderModel = require("../models/orderModel");
+const userModel = require("../models/userModel");
+const businessModel = require("../models/businessModel");
 const transactionModel = require("../models/transactionModel");
+const calculateCashbackHelper = require("../CommanFuntion/calculateCashbackHelper");
 
 const getWalletDetails = async (userId) => {
   const result = await transactionModel.aggregate([
@@ -124,77 +127,292 @@ const createOrder = async (req, res) => {
   }
 };
 
+// const acceptOrRejectOrder = async (req, res) => {
+//   try {
+//     const { id, status } = req.body;
+
+//     if (!id || !status) {
+//       return res
+//         .status(400)
+//         .send({ msg: " Please Enter the id and status", data: null });
+//     }
+
+//     const order = await orderModel.findById(id);
+//     if (!order) {
+//       return res.status(404).send({ msg: "Order not found" });
+//     }
+
+//     if (order.status !== "Pending") {
+//       return res.status(400).send({ msg: `Order already ${order.status}` });
+//     }
+
+//     if (status === "accept") {
+//       order.status = "Accepted";
+//       await order.save();
+
+//       //crediting amount to shopkeeper wallet
+//       const addTransaction = await transactionModel.create({
+//         userId: order.shopkeeperId,
+//         transactionType: "credit",
+//         amount: order.amount,
+//         orderId: order._id,
+//         category: "order",
+//         narration: `Order ${order._id} accepted`,
+//       });
+
+//       if (!addTransaction) {
+//         return res.status(400).send({
+//           msg: "Order accepted but amount did not credit",
+//           data: null,
+//         });
+//       }
+//       return res
+//         .status(200)
+//         .send({ msg: "Order accepted and amount credited to shopkeeper" });
+//     } else if (status === "reject") {
+//       // Update order status
+//       order.status = "Rejected";
+//       await order.save();
+
+//       // Refund amount to user if wallet was selected
+//       let transaction = null;
+//       if (order.isWalletSelected) {
+//         transaction = await transactionModel.create({
+//           userId: order.userId,
+//           orderId: order._id,
+//           transactionType: "credit",
+//           amount: order.amount,
+//           category: "order",
+//           narration: `amount refunded`,
+//         });
+//       }
+
+//       if (order.isWalletSelected && !transaction) {
+//         return res
+//           .status(400)
+//           .send({ msg: "Order rejected but amount refund failed" });
+//       }
+//       return res
+//         .status(200)
+//         .send({ msg: "Order rejected and amount refunded to user wallet" });
+//     }
+//   } catch (error) {
+//     return res.status(500).send({ msg: error.message });
+//   }
+// };
+
+// Helper: Update wallet safely
+
+// Helper: update user wallet safely
+const updateUserWallet = async (
+  userId,
+  amount,
+  type = "referral",
+  alsoAddBalance = false
+) => {
+  if (!userId || !amount || amount <= 0) return;
+
+  const user = await userModel.findById(userId);
+  if (!user) return;
+
+  const updateObj = {};
+  if (type === "customer") updateObj["walletDetails.cashbackPoints"] = amount;
+  else updateObj["walletDetails.referralPoints"] = amount;
+
+  if (alsoAddBalance) updateObj["walletDetails.balance"] = amount;
+
+  await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+};
+
 const acceptOrRejectOrder = async (req, res) => {
   try {
     const { id, status } = req.body;
 
-    if (!id || !status) {
-      return res
-        .status(400)
-        .send({ msg: " Please Enter the id and status", data: null });
-    }
+    if (!id || !status)
+      return res.status(400).send({ msg: "Please enter id and status" });
 
     const order = await orderModel.findById(id);
-    if (!order) {
-      return res.status(404).send({ msg: "Order not found" });
-    }
+    if (!order) return res.status(404).send({ msg: "Order not found" });
 
-    if (order.status !== "Pending") {
+    if (order.status !== "Pending")
       return res.status(400).send({ msg: `Order already ${order.status}` });
-    }
 
     if (status === "accept") {
       order.status = "Accepted";
-      await order.save();
 
-      //crediting amount to shopkeeper wallet
-      const addTransaction = await transactionModel.create({
-        userId: order.shopkeeperId,
-        transactionType: "credit",
-        amount: order.amount,
-        orderId: order._id,
-        category: "order",
-        narration: `Order ${order._id} accepted`,
-      });
-
-      if (!addTransaction) {
-        return res.status(400).send({
-          msg: "Order accepted but amount did not credit",
-          data: null,
+      // Credit shopkeeper amount
+      if (order.shopkeeperId) {
+        await updateUserWallet(
+          order.shopkeeperId,
+          order.amount,
+          "referral",
+          true
+        );
+        await transactionModel.create({
+          userId: order.shopkeeperId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: order.amount,
+          category: "order",
+          narration: `Order accepted`,
         });
       }
-      return res
-        .status(200)
-        .send({ msg: "Order accepted and amount credited to shopkeeper" });
-    } else if (status === "reject") {
-      // Update order status
+
+      // Calculate cashback
+      const cashbackData = await calculateCashbackHelper({
+        userId: order.userId,
+        shopkeeperId: order.shopkeeperId,
+        orderAmount: order.amount,
+      });
+
+      const receivers = cashbackData.cashbackReceivers;
+      const allTransactions = [];
+
+      // Customer
+      if (receivers.customer?.cashback > 0) {
+        await updateUserWallet(
+          receivers.customer.userId,
+          receivers.customer.cashback,
+          "customer",
+          true
+        );
+        allTransactions.push({
+          userId: receivers.customer.userId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: receivers.customer.cashback,
+          category: "cashback",
+          narration: "Customer cashback",
+        });
+      }
+
+      // Referrer
+      if (receivers.referrer?.cashback > 0) {
+        await updateUserWallet(
+          receivers.referrer.userId,
+          receivers.referrer.cashback,
+          "referral",
+          true
+        );
+        allTransactions.push({
+          userId: receivers.referrer.userId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: receivers.referrer.cashback,
+          category: "cashback",
+          narration: "Referrer cashback",
+        });
+      }
+
+      // Multi-level
+      [receivers.levels, receivers.irot1, receivers.irot2].forEach((group) => {
+        if (Array.isArray(group)) {
+          group.forEach(async (entry) => {
+            if (!entry) return;
+            await updateUserWallet(
+              entry.userId,
+              entry.cashback,
+              "referral",
+              true
+            );
+            allTransactions.push({
+              userId: entry.userId,
+              transactionType: "credit",
+              orderId: order._id,
+              amount: entry.cashback,
+              category: "cashback",
+              narration: "Multi-level cashback",
+            });
+          });
+        }
+      });
+
+      // ROR
+      if (receivers.ror?.receiver) {
+        await updateUserWallet(
+          receivers.ror.receiver.userId,
+          receivers.ror.receiver.cashback,
+          "referral",
+          true
+        );
+        allTransactions.push({
+          userId: receivers.ror.receiver.userId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: receivers.ror.receiver.cashback,
+          category: "cashback",
+          narration: "ROR cashback",
+        });
+      }
+
+      // Shopkeeper
+      if (receivers.shopkeeper?.cashback > 0) {
+        await updateUserWallet(
+          receivers.shopkeeper.userId,
+          receivers.shopkeeper.cashback,
+          "referral",
+          true
+        );
+        allTransactions.push({
+          userId: receivers.shopkeeper.userId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: receivers.shopkeeper.cashback,
+          category: "cashback",
+          narration: "Shopkeeper cashback",
+        });
+      }
+
+      // SuperAdmin (optional)
+      if (receivers.superadmin?.cashback > 0) {
+        allTransactions.push({
+          userId: null,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: receivers.superadmin.cashback,
+          category: "cashback",
+          narration: "SuperAdmin cashback",
+        });
+      }
+
+      // Save transactions
+      if (allTransactions.length > 0)
+        await transactionModel.insertMany(allTransactions);
+
+      await order.save();
+      return res.status(200).send({
+        msg: "Order accepted and cashback distributed successfully",
+        cashbackSummary: receivers,
+      });
+    }
+
+    // REJECT
+    else if (status === "reject") {
       order.status = "Rejected";
       await order.save();
 
-      // Refund amount to user if wallet was selected
-      let transaction = null;
-      if (order.isWalletSelected) {
-        transaction = await transactionModel.create({
+      if (order.userId) {
+        await updateUserWallet(order.userId, order.amount, "customer", true);
+        await transactionModel.create({
           userId: order.userId,
-          orderId: order._id,
           transactionType: "credit",
+          orderId: order._id,
           amount: order.amount,
-          category: "order",
-          narration: `amount refunded`,
+          category: "refund",
+          narration: "Order refunded",
         });
       }
 
-      if (order.isWalletSelected && !transaction) {
-        return res
-          .status(400)
-          .send({ msg: "Order rejected but amount refund failed" });
-      }
       return res
         .status(200)
-        .send({ msg: "Order rejected and amount refunded to user wallet" });
+        .send({ msg: "Order rejected and refunded successfully" });
     }
-  } catch (error) {
-    return res.status(500).send({ msg: error.message });
+  } catch (err) {
+    console.error("Error in acceptOrRejectOrder:", err);
+    return res.status(500).send({
+      msg: "Internal server error",
+      error: err.message,
+    });
   }
 };
 
@@ -507,6 +725,152 @@ const getOrdersByMonth = async (req, res) => {
   }
 };
 
+// const calculateCashback = async (req, res) => {
+//   try {
+//     const { userId, shopkeeperId, orderAmount } = req.body;
+
+//     if (!userId || !shopkeeperId || !orderAmount) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
+
+//     // 🏪 Get discount/cashback percent from business table
+//     const business = await businessModel
+//       .findOne({ shopkeeperId })
+//       .select("discountPercentage");
+//     if (!business) {
+//       return res.status(404).json({ message: "Shopkeeper not found" });
+//     }
+
+//     const cashbackPercent = business.discountPercentage || 0;
+//     const totalCashback = (orderAmount * cashbackPercent) / 100;
+
+//     // 🧮 Cashback distribution setup (percentage from env)
+//     const distribution = {
+//       customer: (totalCashback * process.env.CUSTOMER_PERCENTAGE) / 100,
+//       referrer: (totalCashback * process.env.REFERRER_PERCENTAGE) / 100,
+//       ror: (totalCashback * process.env.ROR_PERCENTAGE) / 100,
+//       level: (totalCashback * process.env.LEVEL_PERCENTAGE) / 100,
+//       irot1: (totalCashback * process.env.IROT1_PERCENTAGE) / 100,
+//       irot2: (totalCashback * process.env.IROT2_PERCENTAGE) / 100,
+//       tiup: (totalCashback * process.env.TIUP_PERCENTAGE) / 100,
+//       superadmin: (totalCashback * process.env.SUPERADMIN_PERCENTAGE) / 100,
+//     };
+
+//     // 🧍 Find main user (customer)
+//     const user = await userModel.findById(userId);
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     // 👥 Find referrer (direct)
+//     const referrer =
+//       user.referalUser &&
+//       (await userModel
+//         .findById(user.referalUser)
+//         .select("firstName lastName mobile"));
+
+//     // 🔗 Get up to 10-level referral chain
+//     let currentRef = user.referalUser;
+//     const levelUsers = [];
+//     let level = 1;
+
+//     while (currentRef && level <= 10) {
+//       const refUser = await userModel
+//         .findById(currentRef)
+//         .select("firstName lastName email mobile referalUser");
+//       if (!refUser) break;
+
+//       levelUsers.push(refUser);
+//       currentRef = refUser.referalUser;
+//       level++;
+//     }
+
+//     const perLevelAmount =
+//       levelUsers.length > 0 ? distribution.level / levelUsers.length : 0;
+
+//     const levelDistribution = levelUsers.map((u, index) => ({
+//       level: index + 1,
+//       userId: u._id,
+//       name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
+//       mobile: u.mobile,
+//       cashback: perLevelAmount,
+//     }));
+
+//     // 🧾 Map actual cashback recipients
+//     const cashbackReceivers = {
+//       customer: {
+//         userId: user._id,
+//         name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+//         cashback: distribution.customer,
+//       },
+//       referrer: referrer
+//         ? {
+//             userId: referrer._id,
+//             name: `${referrer.firstName || ""} ${
+//               referrer.lastName || ""
+//             }`.trim(),
+//             cashback: distribution.referrer,
+//           }
+//         : null,
+//       tiup: {
+//         // 🏪 Shopkeeper
+//         shopkeeperId,
+//         cashback: distribution.tiup,
+//       },
+//       superadmin: {
+//         // 🏢 Main company
+//         name: "SuperAdmin",
+//         cashback: distribution.superadmin,
+//       },
+//       levels: levelDistribution,
+//     };
+
+//     // ✅ Return all calculated result
+//     return res.status(200).json({
+//       message: "Cashback calculation successful",
+//       orderAmount,
+//       cashbackPercent,
+//       totalCashback,
+//       distribution,
+//       cashbackReceivers,
+//       totalLevels: levelUsers.length,
+//     });
+//   } catch (err) {
+//     console.error("Error calculating cashback:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+const calculateCashback = async (req, res) => {
+  try {
+    let { userId, shopkeeperId, orderAmount } = req.body;
+
+    if (!userId || !shopkeeperId || !orderAmount) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Validate ObjectIds
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(shopkeeperId)) {
+      return res.status(400).json({ message: "Invalid shopkeeperId" });
+    }
+
+    // Convert to ObjectId using 'new'
+    userId = new mongoose.Types.ObjectId(userId);
+    shopkeeperId = new mongoose.Types.ObjectId(shopkeeperId);
+
+    const result = await calculateCashbackHelper({
+      userId,
+      shopkeeperId,
+      orderAmount,
+    });
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Error calculating cashback:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   getOrders: getOrders,
   createOrder: createOrder,
@@ -514,4 +878,5 @@ module.exports = {
   getWalletDetails: getWalletDetails,
   cancelOrder: cancelOrder,
   getOrdersByMonth: getOrdersByMonth,
+  calculateCashback: calculateCashback,
 };

@@ -30,9 +30,20 @@ const userSchema = new mongoose.Schema(
     },
     bankName: {
       type: String,
+      trim: true,
+    },
+    accountHolderName: {
+      type: String,
+      trim: true,
     },
     accountNo: {
       type: String,
+      trim: true,
+    },
+    ifscCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
     },
     role: {
       type: String,
@@ -45,8 +56,22 @@ const userSchema = new mongoose.Schema(
     sponsorId: {
       type: String,
     },
+    levelId: {
+      type: Number,
+      default: 1, // optional default value
+      required: false, // optional field
+    },
     refreshToken: {
       type: String,
+    },
+    referalUser: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+    },
+    parentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "users",
+      default: null,
     },
     walletDetails: {
       walletId: {
