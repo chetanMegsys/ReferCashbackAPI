@@ -4,19 +4,22 @@ const fs = require("fs");
 
 const userModel = require("./../models/userModel");
 const businessModel = require("../models/businessModel");
+const { json } = require("body-parser");
 
 const getUser = async (req, res) => {
   try {
     const { id } = req.body;
 
     if (!id || id === "") {
-      const users = await userModel.find();
-      if (!users) {
-        return res.status(404).send({ msg: "No users present", data: null });
+      const userModel = await userModel.find();
+      if (!userModel) {
+        return res
+          .status(404)
+          .send({ msg: "No userModel present", data: null });
       }
       return res
         .status(200)
-        .send({ msg: "Users fetched successfully", data: users });
+        .send({ msg: "userModel fetched successfully", data: userModel });
     } else {
       const user = await userModel.findById(id);
 
@@ -111,7 +114,100 @@ const updateUser = async (req, res) => {
   }
 };
 
+const updateProfilePic = async (req, res) => {
+  try {
+    // ✅ Check file
+    if (!req.files || !req.files.image) {
+      return res.status(400).send({
+        status: false,
+        msg: "No image uploaded",
+      });
+    }
+
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).send({
+        status: false,
+        msg: "User ID is required",
+      });
+    }
+
+    const file = req.files.image;
+
+    // ✅ Validate file type (only images)
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".heif", ".heic"];
+    const fileExt = path.extname(file.name).toLowerCase();
+
+    if (!allowedExtensions.includes(fileExt)) {
+      return res.status(400).send({
+        status: false,
+        msg: `Invalid file type. Allowed formats: ${allowedExtensions.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // ✅ Validate file size (<= 5MB)
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      return res.status(400).send({
+        status: false,
+        msg: "File size exceeds 5 MB limit",
+      });
+    }
+
+    // ✅ Prepare upload directory
+    const uploadDir = "./public/images/userProfile/";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // ✅ Fetch old user data (to remove old image)
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.status(404).send({
+        status: false,
+        msg: "User not found",
+      });
+    }
+
+    // ✅ Generate new file name & path
+    const fileName = `${userId}-${Date.now()}${fileExt}`;
+    const filePath = path.join(uploadDir, fileName);
+    const imageUrl = `/images/userProfile/${fileName}`;
+
+    // ✅ Move new file to destination
+    await file.mv(filePath);
+
+    // ✅ Delete old image if exists
+    if (user.imageUrl) {
+      const oldImagePath = path.join("./public", user.imageUrl);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // ✅ Update new image in DB
+    await userModel.updateOne({ _id: userId }, { $set: { imageUrl } });
+
+    // ✅ Success response
+    res.status(200).send({
+      status: true,
+      msg: "Profile image updated successfully",
+      data: { imageUrl },
+    });
+  } catch (error) {
+    console.error("❌ Error updating profile:", error);
+    res.status(500).send({
+      status: false,
+      msg: "Server error while uploading image",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   updateUser: updateUser,
   getUser: getUser,
+  updateProfilePic: updateProfilePic,
 };

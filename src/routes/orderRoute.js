@@ -9,5 +9,4 @@ Router.post("/acceptOrRejectOrder", orderController.acceptOrRejectOrder);
 Router.post("/cancelOrder", orderController.cancelOrder);
 Router.post("/getOrdersByMonth", orderController.getOrdersByMonth);
 Router.post("/calculateCashback", orderController.calculateCashback);
-
 module.exports = Router;

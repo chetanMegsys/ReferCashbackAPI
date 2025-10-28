@@ -1,6 +1,7 @@
 const businessModel = require("../models/businessModel");
 const fs = require("fs");
 const path = require("path");
+const user = require("../models/userModel");
 
 const addBusiness = async (req, res) => {
   try {
@@ -70,68 +71,70 @@ const addBusiness = async (req, res) => {
 const getBusiness = async (req, res) => {
   const { id, searchText, categories, lat, long } = req.body;
 
-  if (!id || id === "") {
-    try {
-      let filter = {};
+  try {
+    let filter = {};
 
-      // Filter by categories
-      if (categories && categories.length > 0) {
-        filter.categories = { $in: categories };
-      }
-
-      // Filter by search text
-      if (searchText && searchText.trim() !== "") {
-        const regex = new RegExp(searchText, "i"); // case-insensitive
-        filter.$or = [{ businessName: regex }, { address: regex }];
-      }
-
-      // Filter by location only if lat and long are provided
-      if (lat && long) {
-        filter.location = {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [Number(long), Number(lat)],
-            },
-            $maxDistance: 25000, // 10 km in meters
-          },
-        };
-      }
-
-      // Fetch businesses
-      const businessData = await businessModel
-        .find(filter)
-        .populate("categories");
-
-      if (!businessData || businessData.length === 0) {
-        return res.status(200).send({ msg: "No businesses found", data: [] });
-      }
-
-      return res
-        .status(200)
-        .send({ msg: "Businesses fetched successfully", data: businessData });
-    } catch (error) {
-      return res.status(400).send({ msg: error.message });
+    // Filter by categories
+    if (categories && categories.length > 0) {
+      filter.categories = { $in: categories };
     }
-  } else {
-    // Fetch by specific ID
-    try {
+
+    // Filter by search text
+    if (searchText && searchText.trim() !== "") {
+      const regex = new RegExp(searchText, "i"); // case-insensitive
+      filter.$or = [{ businessName: regex }, { address: regex }];
+    }
+
+    // Filter by location only if lat and long are provided
+    if (lat && long) {
+      filter.location = {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [Number(long), Number(lat)],
+          },
+          $maxDistance: 25000, // 25 km radius
+        },
+      };
+    }
+
+    // ✅ If ID is provided — fetch that specific business
+    if (id && id !== "") {
       const businessData = await businessModel
         .findById(id)
-        .populate("categories");
+        .populate("categories")
+        .populate({
+          path: "shopkeeperId", // ✅ this matches your schema
+          model: "users", // ✅ this matches your ref
+        });
 
       if (!businessData) {
-        return res
-          .status(400)
-          .send({ msg: "Error while fetching Business", data: null });
+        return res.status(404).send({ msg: "Business not found", data: null });
       }
 
       return res
         .status(200)
         .send({ msg: "Business fetched successfully", data: businessData });
-    } catch (error) {
-      return res.status(400).send({ msg: error.message });
     }
+
+    // ✅ Otherwise — fetch all businesses matching filters
+    const businessData = await businessModel
+      .find(filter)
+      .populate("categories")
+      .populate({
+        path: "shopkeeperId", // ✅ this matches your schema
+        model: "users", // ✅ this matches your ref
+      });
+
+    if (!businessData || businessData.length === 0) {
+      return res.status(200).send({ msg: "No businesses found", data: [] });
+    }
+
+    return res
+      .status(200)
+      .send({ msg: "Businesses fetched successfully", data: businessData });
+  } catch (error) {
+    return res.status(400).send({ msg: error.message });
   }
 };
 

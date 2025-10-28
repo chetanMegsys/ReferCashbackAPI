@@ -131,7 +131,6 @@ const businessModel = require("../models/businessModel");
 //   // }
 // };
 
-
 const registerUser = async (req, res) => {
   try {
     const {
@@ -163,7 +162,9 @@ const registerUser = async (req, res) => {
     }
 
     // 3️⃣ Check referral exists
-    const referralUser = await userModel.findOne({ mobile: referalMobileNumber });
+    const referralUser = await userModel.findOne({
+      mobile: referalMobileNumber,
+    });
     if (!referralUser) {
       return res.status(400).json({ msg: "Referral user does not exist." });
     }
@@ -205,7 +206,7 @@ const registerUser = async (req, res) => {
       password: hashedPassword,
       role,
       referalUser: referralUser._id, // direct referrer
-      parentId: parentUser._id,      // tree parent
+      parentId: parentUser._id, // tree parent
       levelId: parentUser.levelId + 1, // depth in tree
     };
 
@@ -237,9 +238,6 @@ const registerUser = async (req, res) => {
     res.status(500).send({ msg: error.message, data: null });
   }
 };
-
-
-
 
 const login = async (req, res) => {
   try {

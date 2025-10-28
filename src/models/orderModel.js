@@ -36,7 +36,19 @@ const orderSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    cashbackSummary: {
+      customer: { type: Number, default: 0 },
+      referrer: { type: Number, default: 0 },
+      shopkeeper: { type: Number, default: 0 },
+      superadmin: { type: Number, default: 0 },
+      levels: { type: Number, default: 0 },
+      irot1: { type: Number, default: 0 },
+      irot2: { type: Number, default: 0 },
+      ror: { type: Number, default: 0 },
+      totalCashback: { type: Number, default: 0 },
+    },
   },
+
   { timestamps: true }
 );
 

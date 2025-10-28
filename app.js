@@ -18,12 +18,16 @@ app.use(cors());
 // app.use("/uploads", express.static("public/uploads"));
 // app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+// // app.use(bodyParser.json());
+// // app.use(bodyParser.urlencoded({ extended: true }));
+// app.use(fileUpload());
+// // app.use("/images", express.static("public/images"));
+// app.use(express.static("./public"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(fileUpload());
-
 app.use(express.static("./public"));
 
 app.use("/auth", authRoute);

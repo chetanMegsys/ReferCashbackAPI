@@ -10,55 +10,131 @@ const calculateCashbackHelper = async ({
     throw new Error("Missing required fields for cashback calculation");
   }
 
-  // Get shopkeeper business discount
   const business = await businessModel
     .findOne({ shopkeeperId })
     .select("discountPercentage");
   if (!business) throw new Error("Shopkeeper not found");
 
   const cashbackPercent = business.discountPercentage || 0;
-  const totalCashback = (orderAmount * cashbackPercent) / 100;
+  const totalCashback = Number(
+    ((orderAmount * cashbackPercent) / 100).toFixed(2)
+  );
 
-  // Get buyer
   const buyer = await userModel.findById(userId);
   if (!buyer) throw new Error("Buyer not found");
 
-  // Direct referrer
   const directReferrer = buyer.referalUser
     ? await userModel
         .findById(buyer.referalUser)
         .select("firstName lastName mobile")
     : null;
 
-  // Parent path (all ancestors)
-  const parentPath = [];
-  let currentParentId = buyer.parentId;
-  while (currentParentId) {
-    const parentUser = await userModel
-      .findById(currentParentId)
-      .select("firstName lastName mobile levelId parentId");
-    if (!parentUser) break;
-    parentPath.push(parentUser);
-    currentParentId = parentUser.parentId;
-  }
+  // ✅ LEVEL CASHBACK — Upward only (parents)
+  const getUpstreamUsers = async (startingUserId, maxLevels) => {
+    const result = [];
+    let currentUser = await userModel
+      .findById(startingUserId)
+      .select("parentId");
 
-  // Helper: Equal distribution
-  const distributeEqual = (path, percent, maxLevels) => {
-    const relevant = path.slice(0, maxLevels);
-    const perUserCashback =
-      relevant.length > 0
-        ? (totalCashback * percent) / 100 / relevant.length
-        : 0;
+    let level = 0;
+    while (currentUser?.parentId && level < maxLevels) {
+      const parent = await userModel
+        .findById(currentUser.parentId)
+        .select("firstName lastName mobile parentId");
 
-    return relevant.map((u) => ({
-      userId: u._id,
-      name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
-      mobile: u.mobile,
-      cashback: perUserCashback,
-    }));
+      if (!parent) break;
+
+      result.push({
+        userId: parent._id,
+        name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
+        mobile: parent.mobile,
+      });
+
+      currentUser = parent;
+      level++;
+    }
+
+    return result;
   };
 
-  // Percentages from env
+  // ✅ IROI2 CASHBACK — Upward + Downward up to 20 levels
+  const getUpAndDownUsers = async (startingUserId, maxLevels) => {
+    const visited = new Set();
+    const users = [];
+
+    // helper to fetch children recursively
+    const getChildren = async (userIds, level = 0) => {
+      if (level >= maxLevels || !userIds.length) return;
+      const children = await userModel
+        .find({ parentId: { $in: userIds } })
+        .select("firstName lastName mobile _id");
+
+      for (const child of children) {
+        if (!visited.has(child._id.toString())) {
+          users.push({
+            userId: child._id,
+            name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
+            mobile: child.mobile,
+          });
+          visited.add(child._id.toString());
+        }
+      }
+
+      await getChildren(
+        children.map((c) => c._id),
+        level + 1
+      );
+    };
+
+    // upward
+    const upUsers = await getUpstreamUsers(startingUserId, maxLevels);
+    users.push(...upUsers);
+
+    // downward
+    await getChildren([startingUserId]);
+
+    // remove duplicates
+    const unique = users.filter(
+      (u, i, self) =>
+        i === self.findIndex((t) => t.userId.toString() === u.userId.toString())
+    );
+
+    return unique;
+  };
+
+  // ✅ IROI1 — Direct Referral chain (10 levels)
+  const getDirectReferralChain = async (startingUserId, maxLevels) => {
+    const chain = [];
+    let currentUserId = startingUserId;
+    let count = 0;
+
+    while (currentUserId && count < maxLevels) {
+      const user = await userModel
+        .findById(currentUserId)
+        .select("referalUser firstName lastName mobile");
+      if (!user) break;
+
+      if (user.referalUser) {
+        const refUser = await userModel
+          .findById(user.referalUser)
+          .select("firstName lastName mobile");
+        if (refUser) {
+          chain.push({
+            userId: refUser._id,
+            name: `${refUser.firstName || ""} ${refUser.lastName || ""}`.trim(),
+            mobile: refUser.mobile,
+          });
+        }
+        currentUserId = user.referalUser;
+      } else break;
+
+      count++;
+    }
+
+    return chain;
+  };
+
+  // 🔢 Percentages
   const customerPercent = Number(process.env.CUSTOMER_PERCENTAGE) || 50;
   const directReferralPercent = Number(process.env.REFERRER_PERCENTAGE) || 10;
   const rorPercent = Number(process.env.ROR_PERCENTAGE) || 1;
@@ -68,12 +144,24 @@ const calculateCashbackHelper = async ({
   const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE) || 5;
   const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE) || 10;
 
-  // Level / IROT-1 / IROT-2
-  const levelDistribution = distributeEqual(parentPath, levelPercent, 10);
-  const irot1Distribution = distributeEqual(parentPath, irot1Percent, 10);
-  const irot2Distribution = distributeEqual(parentPath, irot2Percent, 20);
+  // 🧮 Fetch user levels
+  const levelUsers = await getUpstreamUsers(userId, 10);
+  const irot2Users = await getUpAndDownUsers(userId, 20);
+  const irot1Users = await getDirectReferralChain(userId, 10);
 
-  // ROR (shopkeeper's referrer)
+  const calcDistribution = (users, percent) => {
+    const totalAmount = Number(((totalCashback * percent) / 100).toFixed(2));
+    const perUser = users.length
+      ? Number((totalAmount / users.length).toFixed(2))
+      : 0;
+    return users.map((u) => ({ ...u, cashback: perUser }));
+  };
+
+  const levelDistribution = calcDistribution(levelUsers, levelPercent);
+  const irot2Distribution = calcDistribution(irot2Users, irot2Percent);
+  const irot1Distribution = calcDistribution(irot1Users, irot1Percent);
+
+  // 🧾 ROR, Shopkeeper, Superadmin same as before
   const shopkeeper = await userModel.findById(shopkeeperId);
   let rorReceiver = null;
   if (shopkeeper?.referalUser) {
@@ -85,17 +173,33 @@ const calculateCashbackHelper = async ({
         userId: ref._id,
         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         mobile: ref.mobile,
-        cashback: (orderAmount * rorPercent) / 100,
+        cashback: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
       };
     }
   }
 
-  // Map receivers
+  const adminUsers = await userModel
+    .find({ role: "admin" })
+    .select("firstName lastName mobile");
+  const superAdminTotal = Number(
+    ((totalCashback * superAdminPercent) / 100).toFixed(2)
+  );
+  const superAdminPerUser = adminUsers.length
+    ? Number((superAdminTotal / adminUsers.length).toFixed(2))
+    : 0;
+  const superAdminDistribution = adminUsers.map((u) => ({
+    userId: u._id,
+    name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
+    mobile: u.mobile,
+    cashback: superAdminPerUser,
+  }));
+
+  // 🧩 Cashback mapping
   const cashbackReceivers = {
     customer: {
       userId: buyer._id,
       name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
-      cashback: (totalCashback * customerPercent) / 100,
+      cashback: Number(((totalCashback * customerPercent) / 100).toFixed(2)),
     },
     referrer: directReferrer
       ? {
@@ -103,34 +207,36 @@ const calculateCashbackHelper = async ({
           name: `${directReferrer.firstName || ""} ${
             directReferrer.lastName || ""
           }`.trim(),
-          cashback: (totalCashback * directReferralPercent) / 100,
+          cashback: Number(
+            ((totalCashback * directReferralPercent) / 100).toFixed(2)
+          ),
         }
       : null,
     shopkeeper: {
       userId: shopkeeperId,
-      cashback: (totalCashback * shopkeeperPercent) / 100,
+      cashback: Number(((totalCashback * shopkeeperPercent) / 100).toFixed(2)),
     },
-    superadmin: {
-      name: "SuperAdmin",
-      cashback: (totalCashback * superAdminPercent) / 100,
-    },
+    superadmin: superAdminDistribution,
     levels: levelDistribution,
     irot1: irot1Distribution,
     irot2: irot2Distribution,
     ror: {
-      totalROR: (orderAmount * rorPercent) / 100,
+      totalROR: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
       percent: rorPercent,
       receiver: rorReceiver,
     },
     totalCashback,
   };
 
-  // ✅ New object: summary of cashback by type
+  // 📊 Summary
   const cashbackSummary = {
     customer: cashbackReceivers.customer.cashback || 0,
     referrer: cashbackReceivers.referrer?.cashback || 0,
     shopkeeper: cashbackReceivers.shopkeeper.cashback || 0,
-    superadmin: cashbackReceivers.superadmin.cashback || 0,
+    superadmin: superAdminDistribution.reduce(
+      (acc, cur) => acc + cur.cashback,
+      0
+    ),
     levels: levelDistribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot1: irot1Distribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot2: irot2Distribution.reduce((acc, cur) => acc + cur.cashback, 0),
