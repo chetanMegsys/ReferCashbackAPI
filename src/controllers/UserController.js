@@ -32,16 +32,27 @@ const getUser = async (req, res) => {
           .findOne({ shopkeeperId: user._id })
           .populate("categories");
         // ✅ convert to plain JS object for easy modification
+        let businessObj = business ? business.toObject() : null;
+        if (
+          businessObj &&
+          businessObj.location &&
+          businessObj.location.coordinates
+        ) {
+          const latitude = businessObj.location.coordinates[1];
+          const longitude = businessObj.location.coordinates[0];
 
-        if (business && business.location && business.location.coordinates) {
-          business.location = {
-            latitude: business.location.coordinates[1],
-            longitude: business.location.coordinates[0],
-          };
+          // Update the location object
+          businessObj.location = { latitude, longitude };
+
+          // ✅ Add latitude and longitude directly to the business object
+          // businessObj.latitude = latitude;
+          // businessObj.longitude = longitude;
         }
+        console.log(businessObj);
 
-        userData = { ...user.toObject(), business };
+        userData = { ...user.toObject(), business: businessObj };
       }
+      console.log(userData);
 
       return res
         .status(200)

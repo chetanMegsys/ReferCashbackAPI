@@ -219,6 +219,7 @@ const registerUser = async (req, res) => {
       const newBusiness = new businessModel({
         businessName,
         address,
+        categories: req?.categories,
         shopkeeperId: newUser._id,
         location: {
           type: "Point",
