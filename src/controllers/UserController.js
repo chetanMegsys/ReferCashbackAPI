@@ -48,11 +48,9 @@ const getUser = async (req, res) => {
           // businessObj.latitude = latitude;
           // businessObj.longitude = longitude;
         }
-        console.log(businessObj);
 
         userData = { ...user.toObject(), business: businessObj };
       }
-      console.log(userData);
 
       return res
         .status(200)

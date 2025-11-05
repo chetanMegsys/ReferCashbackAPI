@@ -101,6 +101,7 @@ const createOrder = async (req, res) => {
   try {
     const { userId, shopkeeperId, businessId, amount, isWalletSelected } =
       req.body;
+    const shopkeeperWallateDetails = await getWalletDetails(shopkeeperId);
     if (isWalletSelected) {
       const walletDetails = await getWalletDetails(userId);
 
@@ -116,6 +117,12 @@ const createOrder = async (req, res) => {
       shopkeeperId,
       orderAmount: amount,
     });
+
+    if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
+      return res.status(400).send({
+        msg: "This shopkeeper is not eligible for cashback.",
+      });
+    }
     const newOrder = new orderModel({
       userId,
       shopkeeperId,
@@ -300,24 +307,40 @@ const acceptOrRejectOrder = async (req, res) => {
       const netShopkeeperAmount =
         order.amount - cashbackReceivers?.totalCashback;
 
-      if (netShopkeeperAmount > 0) {
-        await updateUserWallet(
-          order.shopkeeperId,
-          netShopkeeperAmount,
-          "referral",
-          true
-        );
-        // not confirm to this amoutn wich location this temp
-        // allTransactions.push({
-        //   userId: order.shopkeeperId,
-        //   transactionType: "credit",
-        //   orderId: order._id,
-        //   amount: netShopkeeperAmount,
-        //   category: "order",
-        //   narration: "Order accepted (after cashback deduction)",
-        // });
-      }
+      // if (netShopkeeperAmount > 0) {
+      //   await updateUserWallet(
+      //     order.shopkeeperId,
+      //     netShopkeeperAmount,
+      //     "referral",
+      //     true
+      //   );
+      //   // not confirm to this amoutn wich location this temp
+      //   allTransactions.push({
+      //     userId: order.shopkeeperId,
+      //     transactionType: "credit",
+      //     orderId: order._id,
+      //     amount: netShopkeeperAmount,
+      //     category: "order",
+      //     narration: "Order accepted (after cashback deduction)",
+      //   });
+      // }
 
+      await allTransactions.push({
+        userId: order?.shopkeeperId,
+        transactionType: "debit",
+        orderId: order._id,
+        amount: cashbackSummary?.totalCashback,
+        category: "cashback",
+        narration: `Cashback deduction for order ${order?.orderId}`,
+      });
+      const amount = cashbackSummary?.totalCashback;
+      console.log(cashbackSummary?.totalCashback, "..");
+
+      await userModel.findByIdAndUpdate(
+        order?.shopkeeperId,
+        { $inc: { "walletDetails.balance": -amount } }, // decrement balance
+        { new: true }
+      );
       // --------------------------
       // Cashback distribution
       // --------------------------
@@ -469,7 +492,7 @@ const acceptOrRejectOrder = async (req, res) => {
         const amount = Number(order.amount) || 0;
 
         // 1️⃣ Refund to wallet
-        await updateUserWallet(order.userId, amount, "cutomer", true);
+        await updateUserWallet(order.userId, amount, "customer", true);
 
         // 2️⃣ Log refund transaction
         await transactionModel.create({

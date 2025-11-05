@@ -146,6 +146,7 @@ const registerUser = async (req, res) => {
       middleName,
       lastName,
       email,
+      categories,
     } = req.body;
 
     // 1️⃣ Basic validation
@@ -219,7 +220,7 @@ const registerUser = async (req, res) => {
       const newBusiness = new businessModel({
         businessName,
         address,
-        categories: req?.categories,
+        categories: categories,
         shopkeeperId: newUser._id,
         location: {
           type: "Point",
@@ -347,11 +348,10 @@ const verifyRefreshToken = async (req, res) => {
     // Save new refresh token in DB (replace old one)
     user.refreshToken = newRefreshToken;
     await user.save();
-
+    const data = { accessToken: newAccessToken, refreshToken: newRefreshToken };
     return res.status(200).send({
       msg: "Access token refreshed successfully",
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      data,
     });
   } catch (error) {
     return res

@@ -230,6 +230,7 @@ const calculateCashbackHelper = async ({
 
   // 📊 Summary
   const cashbackSummary = {
+    totalCashback: totalCashback,
     customer: cashbackReceivers.customer.cashback || 0,
     referrer: cashbackReceivers.referrer?.cashback || 0,
     shopkeeper: cashbackReceivers.shopkeeper.cashback || 0,
