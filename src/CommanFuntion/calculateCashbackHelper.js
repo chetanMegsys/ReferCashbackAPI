@@ -19,7 +19,9 @@ const calculateCashbackHelper = async ({
   const totalCashback = Number(
     ((orderAmount * cashbackPercent) / 100).toFixed(2)
   );
-
+  const adminUsers = await userModel
+    .findOne({ role: "admin" })
+    .select("firstName lastName mobile");
   const buyer = await userModel.findById(userId);
   if (!buyer) throw new Error("Buyer not found");
 
@@ -27,7 +29,7 @@ const calculateCashbackHelper = async ({
     ? await userModel
         .findById(buyer.referalUser)
         .select("firstName lastName mobile")
-    : null;
+    : adminUsers;
 
   // ✅ LEVEL CASHBACK — Upward only (parents)
   const getUpstreamUsers = async (startingUserId, maxLevels) => {
@@ -149,50 +151,103 @@ const calculateCashbackHelper = async ({
   const irot2Users = await getUpAndDownUsers(userId, 20);
   const irot1Users = await getDirectReferralChain(userId, 10);
 
-  const calcDistribution = (users, percent) => {
+  const calcDistribution = (users, percent, maxLevels, adminUser) => {
     const totalAmount = Number(((totalCashback * percent) / 100).toFixed(2));
-    const perUser = users.length
-      ? Number((totalAmount / users.length).toFixed(2))
-      : 0;
-    return users.map((u) => ({ ...u, cashback: perUser }));
+
+    let perUser = 0;
+    let distributed = 0;
+
+    if (users.length > 0) {
+      // Divide only among present users
+      perUser = Number((totalAmount / maxLevels).toFixed(2));
+      distributed = perUser * users.length;
+    }
+
+    const remaining = Number((totalAmount - distributed).toFixed(2));
+
+    // Assign cashback to present users
+    const result = users.map((u) => ({
+      ...u,
+      cashback: perUser,
+    }));
+
+    // If admin/min should get remaining
+    if (remaining > 0 && adminUser) {
+      result.push({
+        ...adminUsers.toObject?.(), // handles Mongoose doc or plain object
+        cashback: remaining,
+      });
+    }
+
+    return result;
   };
 
-  const levelDistribution = calcDistribution(levelUsers, levelPercent);
-  const irot2Distribution = calcDistribution(irot2Users, irot2Percent);
-  const irot1Distribution = calcDistribution(irot1Users, irot1Percent);
+  const levelDistribution = calcDistribution(
+    levelUsers,
+    levelPercent,
+    10,
+    adminUsers
+  );
+  const irot2Distribution = calcDistribution(
+    irot2Users,
+    irot2Percent,
+    20,
+    adminUsers
+  );
+  const irot1Distribution = calcDistribution(
+    irot1Users,
+    irot1Percent,
+    10,
+    adminUsers
+  );
 
   // 🧾 ROR, Shopkeeper, Superadmin same as before
-  const shopkeeper = await userModel.findById(shopkeeperId);
+  const RORUser = await userModel.findById(directReferrer?._id);
+
   let rorReceiver = null;
-  if (shopkeeper?.referalUser) {
+  if (RORUser) {
     const ref = await userModel
-      .findById(shopkeeper.referalUser)
+      .findById(RORUser.referalUser)
       .select("firstName lastName mobile");
+
     if (ref) {
+      // ✅ If ref exists, use its details
       rorReceiver = {
         userId: ref._id,
         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         mobile: ref.mobile,
         cashback: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
       };
+    } else {
+      // ⚙️ If ref not found, assign to an admin user
+      const adminUser = await userModel
+        .findOne({ role: "admin" })
+        .select("firstName lastName mobile");
+
+      if (adminUser) {
+        rorReceiver = {
+          userId: adminUser._id,
+          name: `${adminUser.firstName || ""} ${
+            adminUser.lastName || ""
+          }`.trim(),
+          mobile: adminUser.mobile,
+          cashback: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
+        };
+      } else {
+        // Optional: handle case where no admin exists
+        throw new Error("No ref or admin user found to assign ROR receiver.");
+      }
     }
   }
 
-  const adminUsers = await userModel
-    .find({ role: "admin" })
-    .select("firstName lastName mobile");
   const superAdminTotal = Number(
     ((totalCashback * superAdminPercent) / 100).toFixed(2)
   );
-  const superAdminPerUser = adminUsers.length
-    ? Number((superAdminTotal / adminUsers.length).toFixed(2))
-    : 0;
-  const superAdminDistribution = adminUsers.map((u) => ({
-    userId: u._id,
-    name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
-    mobile: u.mobile,
-    cashback: superAdminPerUser,
-  }));
+
+  const superAdminDistribution = {
+    ...adminUsers.toObject?.(), // handles Mongoose doc or plain object
+    cashback: superAdminTotal,
+  };
 
   // 🧩 Cashback mapping
   const cashbackReceivers = {
@@ -216,7 +271,7 @@ const calculateCashbackHelper = async ({
       userId: shopkeeperId,
       cashback: Number(((totalCashback * shopkeeperPercent) / 100).toFixed(2)),
     },
-    superadmin: superAdminDistribution,
+    superadmin: [superAdminDistribution],
     levels: levelDistribution,
     irot1: irot1Distribution,
     irot2: irot2Distribution,
@@ -234,10 +289,7 @@ const calculateCashbackHelper = async ({
     customer: cashbackReceivers.customer.cashback || 0,
     referrer: cashbackReceivers.referrer?.cashback || 0,
     shopkeeper: cashbackReceivers.shopkeeper.cashback || 0,
-    superadmin: superAdminDistribution.reduce(
-      (acc, cur) => acc + cur.cashback,
-      0
-    ),
+    superadmin: superAdminDistribution.cashback,
     levels: levelDistribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot1: irot1Distribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot2: irot2Distribution.reduce((acc, cur) => acc + cur.cashback, 0),
