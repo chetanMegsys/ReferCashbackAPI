@@ -274,6 +274,7 @@ const acceptOrRejectOrder = async (req, res) => {
 
     // 🔹 Find order
     const order = await orderModel.findById(id);
+
     if (!order) return res.status(404).send({ msg: "Order not found" });
 
     // 🔹 Check that this user is the correct shopkeeper
@@ -282,6 +283,13 @@ const acceptOrRejectOrder = async (req, res) => {
         msg: "Unauthorized: This order does not belong to the logged-in shopkeeper",
       });
     }
+    const user = await userModel.findById(userId).select("firstName lastName");
+
+    const userName = user
+      ? `${user.firstName} ${
+          user.lastName ? user.lastName.charAt(0).toUpperCase() : ""
+        }`
+      : "";
 
     // 🔹 Prevent duplicate status update
     if (order.status !== "Pending")
@@ -303,28 +311,6 @@ const acceptOrRejectOrder = async (req, res) => {
 
       const allTransactions = [];
 
-      // 🔹 Net order amount to shopkeeper
-      const netShopkeeperAmount =
-        order.amount - cashbackReceivers?.totalCashback;
-
-      // if (netShopkeeperAmount > 0) {
-      //   await updateUserWallet(
-      //     order.shopkeeperId,
-      //     netShopkeeperAmount,
-      //     "referral",
-      //     true
-      //   );
-      //   // not confirm to this amoutn wich location this temp
-      //   allTransactions.push({
-      //     userId: order.shopkeeperId,
-      //     transactionType: "credit",
-      //     orderId: order._id,
-      //     amount: netShopkeeperAmount,
-      //     category: "order",
-      //     narration: "Order accepted (after cashback deduction)",
-      //   });
-      // }
-
       await allTransactions.push({
         userId: order?.shopkeeperId,
         transactionType: "debit",
@@ -334,7 +320,6 @@ const acceptOrRejectOrder = async (req, res) => {
         narration: `Cashback deduction for order ${order?.orderId}`,
       });
       const amount = cashbackSummary?.totalCashback;
-      console.log(cashbackSummary?.totalCashback, "..");
 
       await userModel.findByIdAndUpdate(
         order?.shopkeeperId,
@@ -359,7 +344,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.customer.cashback,
           category: "cashback",
-          narration: "Customer cashback",
+          narration: "Cashback amount received",
         });
       }
 
@@ -377,7 +362,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.referrer.cashback,
           category: "cashback",
-          narration: "Referrer cashback",
+          narration: `${userName} Referrer cashback`,
         });
       }
 
@@ -404,7 +389,7 @@ const acceptOrRejectOrder = async (req, res) => {
               orderId: order._id,
               amount: entry.cashback,
               category: "cashback",
-              narration: `${type} cashback`,
+              narration: `${userName} ${type} cashback`,
             });
           }
         }
@@ -424,7 +409,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.ror.receiver.cashback,
           category: "cashback",
-          narration: "ROR cashback",
+          narration: `${userName} ROR cashback`,
         });
       }
 
@@ -442,7 +427,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.shopkeeper.cashback,
           category: "cashback",
-          narration: "Shopkeeper cashback",
+          narration: `${userName} Tie up cashback`,
         });
       }
 
@@ -464,7 +449,7 @@ const acceptOrRejectOrder = async (req, res) => {
             orderId: order._id,
             amount: admin.cashback,
             category: "cashback",
-            narration: "SuperAdmin cashback",
+            narration: `${userName} SuperAdmin cashback`,
           });
         }
       }

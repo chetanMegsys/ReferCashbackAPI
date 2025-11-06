@@ -25,6 +25,13 @@ const calculateCashbackHelper = async ({
   const buyer = await userModel.findById(userId);
   if (!buyer) throw new Error("Buyer not found");
 
+  const shopkeeper = await userModel.findOne({ _id: shopkeeperId });
+  let refreshedShopkeeper = await userModel.findById(shopkeeper?.referalUser);
+
+  if (!refreshedShopkeeper) {
+    refreshedShopkeeper = adminUsers; // fallback if not found
+  }
+
   const directReferrer = buyer.referalUser
     ? await userModel
         .findById(buyer.referalUser)
@@ -269,6 +276,9 @@ const calculateCashbackHelper = async ({
       : null,
     shopkeeper: {
       userId: shopkeeperId,
+      name: `${refreshedShopkeeper?.firstName || ""} ${
+        refreshedShopkeeper?.lastName
+      }`,
       cashback: Number(((totalCashback * shopkeeperPercent) / 100).toFixed(2)),
     },
     superadmin: [superAdminDistribution],
