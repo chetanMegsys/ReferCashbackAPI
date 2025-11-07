@@ -362,7 +362,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.referrer.cashback,
           category: "cashback",
-          narration: `${userName} Referrer cashback`,
+          narration: `${userName} Referral cashback`,
         });
       }
 
@@ -427,7 +427,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.shopkeeper.cashback,
           category: "cashback",
-          narration: `${userName} Tie up cashback`,
+          narration: `${userName} Tie up income`,
         });
       }
 

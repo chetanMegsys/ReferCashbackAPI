@@ -26,6 +26,7 @@ const calculateCashbackHelper = async ({
   if (!buyer) throw new Error("Buyer not found");
 
   const shopkeeper = await userModel.findOne({ _id: shopkeeperId });
+
   let refreshedShopkeeper = await userModel.findById(shopkeeper?.referalUser);
 
   if (!refreshedShopkeeper) {
@@ -223,7 +224,7 @@ const calculateCashbackHelper = async ({
         userId: ref._id,
         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         mobile: ref.mobile,
-        cashback: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
+        cashback: Number(((totalCashback * rorPercent) / 100).toFixed(2)),
       };
     } else {
       // ⚙️ If ref not found, assign to an admin user
@@ -238,7 +239,7 @@ const calculateCashbackHelper = async ({
             adminUser.lastName || ""
           }`.trim(),
           mobile: adminUser.mobile,
-          cashback: Number(((orderAmount * rorPercent) / 100).toFixed(2)),
+          cashback: Number(((totalCashback * rorPercent) / 100).toFixed(2)),
         };
       } else {
         // Optional: handle case where no admin exists
@@ -275,7 +276,7 @@ const calculateCashbackHelper = async ({
         }
       : null,
     shopkeeper: {
-      userId: shopkeeperId,
+      userId: refreshedShopkeeper?._id,
       name: `${refreshedShopkeeper?.firstName || ""} ${
         refreshedShopkeeper?.lastName
       }`,
