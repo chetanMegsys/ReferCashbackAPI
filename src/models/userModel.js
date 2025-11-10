@@ -17,12 +17,17 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: false,
+      match: [
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+        "Please fill a valid email address",
+      ],
     },
 
     mobile: {
       type: String,
       required: true,
       unique: true,
+      match: [/^\d{10}$/, "Please enter a valid 10-digit mobile number"],
     },
     password: {
       type: String,
@@ -73,6 +78,40 @@ const userSchema = new mongoose.Schema(
       ref: "users",
       default: null,
     },
+
+    currentAddress: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    permanentAddress: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    panCardNumber: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      match: [/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN card format"],
+    },
+    aadhaarCardNumber: {
+      type: String,
+      required: false,
+      trim: true,
+      match: [/^(\d{4}\s?){3}$/, "Aadhaar number must be 12 digits"],
+    },
+    rationCardNumber: {
+      type: String,
+      required: false,
+      trim: true,
+      match: [
+        /^\d{12}$/,
+        "Ration card number must be 12 characters (2 letters + 10 digits)",
+      ],
+    },
+
     walletDetails: {
       walletId: {
         type: mongoose.Schema.Types.ObjectId,

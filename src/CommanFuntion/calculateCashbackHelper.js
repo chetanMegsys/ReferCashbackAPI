@@ -25,9 +25,73 @@ const calculateCashbackHelper = async ({
   const buyer = await userModel.findById(userId);
   if (!buyer) throw new Error("Buyer not found");
 
+  // 🔢 Percentages
+  const customerPercent = Number(process.env.CUSTOMER_PERCENTAGE) || 50;
+  const directReferralPercent = Number(process.env.REFERRER_PERCENTAGE) || 10;
+  const rorPercent = Number(process.env.ROR_PERCENTAGE) || 1;
+  const levelPercent = Number(process.env.LEVEL_PERCENTAGE) || 20;
+  const irot1Percent = Number(process.env.IROT1_PERCENTAGE) || 2;
+  const irot2Percent = Number(process.env.IROT2_PERCENTAGE) || 2;
+  const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE) || 5;
+  const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE) || 10;
+
+  const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
   const shopkeeper = await userModel.findOne({ _id: shopkeeperId });
 
   let refreshedShopkeeper = await userModel.findById(shopkeeper?.referalUser);
+  // If buyer doesn't have both, assign everything to admin
+  if (!hasValidDocs) {
+    const cashback = Number(
+      ((totalCashback * customerPercent) / 100).toFixed(2)
+    );
+    const TIUPCashback = Number(
+      ((totalCashback * shopkeeperPercent) / 100).toFixed(2)
+    );
+    const cashbackReceivers = {
+      customer: {
+        userId: adminUsers._id,
+        name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
+        cashback: cashback,
+      },
+      referrer: null,
+      shopkeeper: {
+        userId: refreshedShopkeeper?._id,
+        name: `${refreshedShopkeeper?.firstName || ""} ${
+          refreshedShopkeeper?.lastName
+        }`,
+        cashback: TIUPCashback,
+      },
+      superadmin: [
+        {
+          ...adminUsers.toObject?.(), // handles Mongoose doc or plain object
+          cashback: totalCashback - cashback - TIUPCashback,
+        },
+      ],
+      levels: [],
+      irot1: [],
+      irot2: [],
+      ror: {
+        totalROR: 0,
+        percent: 0,
+        receiver: null,
+      },
+      totalCashback,
+    };
+
+    const cashbackSummary = {
+      totalCashback,
+      customer: cashback,
+      referrer: 0,
+      shopkeeper: 0,
+      superadmin: totalCashback - cashback,
+      levels: 0,
+      irot1: 0,
+      irot2: 0,
+      ror: 0,
+    };
+
+    return { cashbackReceivers, cashbackSummary };
+  }
 
   if (!refreshedShopkeeper) {
     refreshedShopkeeper = adminUsers; // fallback if not found
@@ -143,16 +207,6 @@ const calculateCashbackHelper = async ({
 
     return chain;
   };
-
-  // 🔢 Percentages
-  const customerPercent = Number(process.env.CUSTOMER_PERCENTAGE) || 50;
-  const directReferralPercent = Number(process.env.REFERRER_PERCENTAGE) || 10;
-  const rorPercent = Number(process.env.ROR_PERCENTAGE) || 1;
-  const levelPercent = Number(process.env.LEVEL_PERCENTAGE) || 20;
-  const irot1Percent = Number(process.env.IROT1_PERCENTAGE) || 2;
-  const irot2Percent = Number(process.env.IROT2_PERCENTAGE) || 2;
-  const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE) || 5;
-  const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE) || 10;
 
   // 🧮 Fetch user levels
   const levelUsers = await getUpstreamUsers(userId, 10);
@@ -275,6 +329,7 @@ const calculateCashbackHelper = async ({
           ),
         }
       : null,
+    //shopkeeper = TIUP user
     shopkeeper: {
       userId: refreshedShopkeeper?._id,
       name: `${refreshedShopkeeper?.firstName || ""} ${

@@ -5,139 +5,13 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const businessModel = require("../models/businessModel");
 
-// const registerUser = async (req, res) => {
-//   try {
-//     const {
-//       mobile,
-//       password,
-//       businessName,
-//       address,
-//       lat,
-//       long,
-//       role,
-//       referalMobileNumber,
-//     } = req.body;
-
-//     if (!mobile || !password) {
-//       return res
-//         .status(400)
-//         .send({ msg: "Please Enter the mobile Number and Password" });
-//     }
-
-//     const existingUser = await userModel.findOne({ mobile });
-//     if (existingUser) {
-//       return res.status(400).send({ msg: "User Already Registered" });
-//     }
-
-//     const referralUser = await userModel.findOne({
-//       mobile: referalMobileNumber,
-//     });
-
-//     if (!referralUser) {
-//       return res.status(400).json({ msg: "Referral user does not exist." });
-//     }
-//     const newUserData = { ...req.body, referalUser: referralUser?._id };
-
-//     if (password && password.trim() !== "") {
-//       const salt = await bcrypt.genSalt(10);
-//       const hashedPassword = await bcrypt.hash(password, salt);
-//       newUserData.password = hashedPassword;
-//     } else {
-//       delete newUserData.password; // Remove password if it's not provided or blank
-//     }
-
-//     const newUser = new userModel(newUserData);
-
-//     if (role === "shopkeeper" && businessName) {
-//       const newBusiness = new businessModel({
-//         ...newUserData,
-//         shopkeeperId: newUser?._id,
-//         location: {
-//           type: "Point",
-//           coordinates: [Number(long), Number(lat)], // GeoJSON order: [lng, lat]
-//         },
-//         // omit if not provided
-//       });
-//       await newBusiness.save();
-//     }
-//     await newUser.save();
-//     if (!newUser) {
-//       return res.status(400).send({ msg: "error while registering" });
-//     }
-
-//     return res
-//       .status(200)
-//       .send({ msg: "User Registered sucessfully", data: newUser });
-//   } catch (error) {
-//     return res.status(500).send({ msg: error.message, data: null });
-//   }
-// };
-
-// const registerUser = async (req, res) => {
-//   try {
-//     const {
-//       firstName,
-//       middleName,
-//       lastName,
-//       email,
-//       mobile,
-//       password,
-//       role,
-//       sponsorId,
-//       businessName,
-//       address,
-//       lat,
-//       long,
-//       categories,
-//     } = req.body;
-
-//     // Step 1: Create user
-//     const newUser = await userModel.create({
-//       firstName,
-//       middleName,
-//       lastName,
-//       email,
-//       mobile,
-//       password,
-//       role,
-//       sponsorId,
-//     });
-
-//     // Step 2: If shopkeeper & business details present, create business
-//     if (role === "shopkeeper" && businessName && address && lat && long) {
-//       await createOrUpdateBusiness({
-//         businessName,
-//         address,
-//         lat,
-//         long,
-//         categories,
-//         shopkeeperId: newUser._id, // Link business with user
-//       });
-//     }
-
-//     return res
-//       .status(200)
-//       .send({ msg: "User Registered sucessfully", data: newUser });
-//   } catch (error) {
-//     return res.status(500).send({ msg: error.message, data: null });
-//   }
-//   // } catch (error) {
-//   //   console.error("Error in registerUser:", error);
-//   //   res.status(500).json({
-//   //     success: false,
-//   //     message: "Something went wrong",
-//   //     error: error.message,
-//   //   });
-//   // }
-// };
-
 const registerUser = async (req, res) => {
   try {
     const {
       mobile,
       password,
       businessName,
-      address,
+      BusinessAddress,
       lat,
       long,
       role,
@@ -147,7 +21,13 @@ const registerUser = async (req, res) => {
       lastName,
       email,
       categories,
+      currentAddress,
+      permanentAddress,
+      panCardNumber,
+      aadhaarCardNumber,
+      rationCardNumber,
     } = req.body;
+    console.log(req.body);
 
     // 1️⃣ Basic validation
     if (!mobile || !password) {
@@ -161,7 +41,15 @@ const registerUser = async (req, res) => {
     if (existingUser) {
       return res.status(400).send({ msg: "User already registered" });
     }
-
+    // 3️⃣ Check if ration card already registered
+    if (rationCardNumber) {
+      const existingRation = await userModel.findOne({ rationCardNumber });
+      if (existingRation) {
+        return res
+          .status(400)
+          .send({ msg: "Ration card number already registered" });
+      }
+    }
     // 3️⃣ Check referral exists
     const referralUser = await userModel.findOne({
       mobile: referalMobileNumber,
@@ -209,17 +97,21 @@ const registerUser = async (req, res) => {
       referalUser: referralUser._id, // direct referrer
       parentId: parentUser._id, // tree parent
       levelId: parentUser.levelId + 1, // depth in tree
+      currentAddress: currentAddress,
+      permanentAddress,
+      panCardNumber,
+      aadhaarCardNumber,
+      rationCardNumber,
     };
 
     // 7️⃣ Save new user
     const newUser = new userModel(newUserData);
-    await newUser.save();
 
     // 8️⃣ If shopkeeper, create business
     if (role === "shopkeeper" && businessName) {
       const newBusiness = new businessModel({
         businessName,
-        address,
+        address: BusinessAddress,
         categories: categories,
         shopkeeperId: newUser._id,
         location: {
@@ -229,7 +121,7 @@ const registerUser = async (req, res) => {
       });
       await newBusiness.save();
     }
-
+    await newUser.save();
     // ✅ Respond
     res.status(200).send({
       msg: "User registered successfully",

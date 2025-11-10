@@ -27,10 +27,15 @@ const getUser = async (req, res) => {
         return res.status(404).send({ msg: "User not found", data: null });
       }
       let userData = user;
+      const referredUsers = await userModel
+        .find({ referalUser: id })
+        .select("firstName lastName mobile email levelId createdAt imageUrl");
+
       if (user.role === "shopkeeper") {
         const business = await businessModel
           .findOne({ shopkeeperId: user._id })
           .populate("categories");
+
         // ✅ convert to plain JS object for easy modification
         let businessObj = business ? business.toObject() : null;
         if (
@@ -49,9 +54,16 @@ const getUser = async (req, res) => {
           // businessObj.longitude = longitude;
         }
 
-        userData = { ...user.toObject(), business: businessObj };
+        userData = {
+          ...user.toObject(),
+          business: businessObj,
+          referredUsers: referredUsers,
+        };
       }
-
+      userData = {
+        ...user.toObject(),
+        referredUsers: referredUsers,
+      };
       return res
         .status(200)
         .send({ msg: "User fetched successfully", data: userData });
@@ -63,40 +75,50 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, rationCardNumber } = req.body;
+    console.log(req.body);
 
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
+    }
+    // 3️⃣ Check if ration card already registered
+    if (rationCardNumber) {
+      const existingRation = await userModel.findOne({ rationCardNumber });
+      if (existingRation) {
+        return res
+          .status(400)
+          .send({ msg: "Ration card number already registered" });
+      }
     }
 
     let updateData = req.body;
     let oldImagePath = null;
 
     // handle image upload
-    if (req.files && req.files.image) {
-      let imageFile = req.files.image;
+    // if (req.files && req.files.image) {
+    //   let imageFile = req.files.image;
 
-      // ensure /public/images folder exists
-      const imagesDir = path.join("public", "images");
-      if (!fs.existsSync(imagesDir)) {
-        fs.mkdirSync(imagesDir, { recursive: true });
-      }
+    //   // ensure /public/images folder exists
+    //   const imagesDir = path.join("public", "images");
+    //   if (!fs.existsSync(imagesDir)) {
+    //     fs.mkdirSync(imagesDir, { recursive: true });
+    //   }
 
-      // unique filename
-      let fileName = Date.now() + "_" + imageFile.name;
-      let uploadPath = path.join(imagesDir, fileName);
+    //   // unique filename
+    //   let fileName = Date.now() + "_" + imageFile.name;
+    //   let uploadPath = path.join(imagesDir, fileName);
 
-      // move uploaded file
-      await imageFile.mv(uploadPath);
+    //   // move uploaded file
+    //   await imageFile.mv(uploadPath);
 
-      const currentUser = await userModel.findById(id);
-      if (currentUser && currentUser.imageUrl) {
-        oldImagePath = path.join("public", currentUser.imageUrl); // stored relative earlier
-      }
+    //   const currentUser = await userModel.findById(id);
+    //   if (currentUser && currentUser.imageUrl) {
+    //     oldImagePath = path.join("public", currentUser.imageUrl); // stored relative earlier
+    //   }
 
-      // save relative path (accessible via express.static)
-      updateData.imageUrl = `/images/${fileName}`;
-    }
+    //   // save relative path (accessible via express.static)
+    //   updateData.imageUrl = `/images/${fileName}`;
+    // }
 
     const updatedUser = await userModel.findByIdAndUpdate(
       id,

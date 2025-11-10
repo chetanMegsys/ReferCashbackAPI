@@ -283,7 +283,9 @@ const acceptOrRejectOrder = async (req, res) => {
         msg: "Unauthorized: This order does not belong to the logged-in shopkeeper",
       });
     }
-    const user = await userModel.findById(userId).select("firstName lastName");
+    const user = await userModel
+      .findById(order?.userId)
+      .select("firstName lastName");
 
     const userName = user
       ? `${user.firstName} ${
@@ -846,7 +848,7 @@ const getOrdersByMonth = async (req, res) => {
           _id: 0,
         },
       },
-      { $sort: { month: -1 } },
+      { $sort: { month: 1 } },
     ]);
 
     res.status(200).send({
