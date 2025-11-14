@@ -102,6 +102,13 @@ const createOrder = async (req, res) => {
     const { userId, shopkeeperId, businessId, amount, isWalletSelected } =
       req.body;
     const shopkeeperWallateDetails = await getWalletDetails(shopkeeperId);
+    console.log(shopkeeperId, userId);
+
+    if (shopkeeperId === userId) {
+      return res
+        .status(400)
+        .send({ msg: "You cannot create an order for your own shop." });
+    }
     if (isWalletSelected) {
       const walletDetails = await getWalletDetails(userId);
 
@@ -166,83 +173,6 @@ const createOrder = async (req, res) => {
   }
 };
 
-// const acceptOrRejectOrder = async (req, res) => {
-//   try {
-//     const { id, status } = req.body;
-
-//     if (!id || !status) {
-//       return res
-//         .status(400)
-//         .send({ msg: " Please Enter the id and status", data: null });
-//     }
-
-//     const order = await orderModel.findById(id);
-//     if (!order) {
-//       return res.status(404).send({ msg: "Order not found" });
-//     }
-
-//     if (order.status !== "Pending") {
-//       return res.status(400).send({ msg: `Order already ${order.status}` });
-//     }
-
-//     if (status === "accept") {
-//       order.status = "Accepted";
-//       await order.save();
-
-//       //crediting amount to shopkeeper wallet
-//       const addTransaction = await transactionModel.create({
-//         userId: order.shopkeeperId,
-//         transactionType: "credit",
-//         amount: order.amount,
-//         orderId: order._id,
-//         category: "order",
-//         narration: `Order ${order._id} accepted`,
-//       });
-
-//       if (!addTransaction) {
-//         return res.status(400).send({
-//           msg: "Order accepted but amount did not credit",
-//           data: null,
-//         });
-//       }
-//       return res
-//         .status(200)
-//         .send({ msg: "Order accepted and amount credited to shopkeeper" });
-//     } else if (status === "reject") {
-//       // Update order status
-//       order.status = "Rejected";
-//       await order.save();
-
-//       // Refund amount to user if wallet was selected
-//       let transaction = null;
-//       if (order.isWalletSelected) {
-//         transaction = await transactionModel.create({
-//           userId: order.userId,
-//           orderId: order._id,
-//           transactionType: "credit",
-//           amount: order.amount,
-//           category: "order",
-//           narration: `amount refunded`,
-//         });
-//       }
-
-//       if (order.isWalletSelected && !transaction) {
-//         return res
-//           .status(400)
-//           .send({ msg: "Order rejected but amount refund failed" });
-//       }
-//       return res
-//         .status(200)
-//         .send({ msg: "Order rejected and amount refunded to user wallet" });
-//     }
-//   } catch (error) {
-//     return res.status(500).send({ msg: error.message });
-//   }
-// };
-
-// Helper: Update wallet safely
-
-// Helper: update user wallet safely
 const updateUserWallet = async (
   userId,
   amount,
@@ -346,7 +276,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.customer.cashback,
           category: "cashback",
-          narration: "Cashback amount received",
+          narration: "Cashback received",
         });
       }
 
@@ -582,139 +512,6 @@ const cancelOrder = async (req, res) => {
   }
 };
 
-// const getOrdersByMonth = async (req, res) => {
-//   const { userId } = req.body;
-
-//   if (!userId) {
-//     return res.status(400).send({ msg: "No such userId" });
-//   }
-//   const result = await orderModel.aggregate([
-//     {
-//       $match: {
-//         userId: new mongoose.Types.ObjectId(userId),
-//       },
-//     },
-//     {
-//       $addFields: {
-//         monthYear: {
-//           $dateToString: {
-//             format: "%B %Y", // e.g., September 2025
-//             date: "$date", // <-- use your "date" field
-//           },
-//         },
-//         formattedDate: {
-//           $dateToString: {
-//             format: "%d %B %Y", // e.g., 01 September 2025
-//             date: "$date", // <-- use your "date" field
-//           },
-//         },
-//       },
-//     },
-//     { $sort: { date: -1 } }, // latest first
-//     {
-//       $group: {
-//         _id: "$monthYear",
-//         orders: {
-//           $push: {
-//             id: "$_id",
-//             name: { $ifNull: ["$narration", "$category"] },
-//             date: "$formattedDate",
-//             amount: "$amount",
-//             image: { $literal: "profilePic" },
-//             reward: { $ifNull: ["$rewardPoints", 0] },
-//           },
-//         },
-//       },
-//     },
-//     {
-//       $project: {
-//         month: "$_id",
-//         orders: 1,
-//         _id: 0,
-//       },
-//     },
-//     { $sort: { month: -1 } },
-//   ]);
-// };
-
-// const getOrdersByMonth = async (req, res) => {
-//   try {
-//     const { userId } = req.body;
-
-//     if (!userId) {
-//       return res.status(400).send({ msg: "No such userId" });
-//     }
-
-//     const result = await orderModel.aggregate([
-//       {
-//         $match: {
-//           userId: new mongoose.Types.ObjectId(userId),
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "businesses",
-//           localField: "businessId",
-//           foreignField: "_id",
-//           as: "business",
-//         },
-//       },
-//       { $unwind: "$business" },
-//       {
-//         $addFields: {
-//           monthYear: {
-//             $dateToString: {
-//               format: "%B ’%y", // e.g., July ’25
-//               date: "$createdAt",
-//             },
-//           },
-//           formattedDate: {
-//             $dateToString: {
-//               format: "%d %B ’%y", // e.g., 30 July ’25
-//               date: "$createdAt",
-//             },
-//           },
-//         },
-//       },
-//       { $sort: { createdAt: -1 } }, // latest first
-//       {
-//         $group: {
-//           _id: "$monthYear",
-//           orders: {
-//             $push: {
-//               id: "$_id",
-//               name: "$business.businessName",
-//               date: "$formattedDate",
-//               amount: "$amount",
-//               image: { $literal: "profilePic" },
-//               reward: { $floor: { $multiply: ["$amount", 0.1] } }, // 10% reward example
-//             },
-//           },
-//         },
-//       },
-//       {
-//         $project: {
-//           month: "$_id",
-//           orders: 1,
-//           _id: 0,
-//         },
-//       },
-//       { $sort: { month: -1 } },
-//     ]);
-
-//     res.status(200).send({
-//       msg: "Order history fetched successfully",
-//       data: result,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send({
-//       msg: "Something went wrong",
-//       error: error.message,
-//     });
-//   }
-// };
-
 const getOrdersByMonth = async (req, res) => {
   try {
     const { userId, shopkeeperId } = req.body;
@@ -724,13 +521,21 @@ const getOrdersByMonth = async (req, res) => {
     }
 
     // Build dynamic match condition
-    const matchCondition = {};
+    let matchCondition = {};
     if (userId) {
       matchCondition.userId = new mongoose.Types.ObjectId(userId);
     }
     if (shopkeeperId) {
-      matchCondition.shopkeeperId = new mongoose.Types.ObjectId(shopkeeperId);
+      matchCondition = {
+        $or: [
+          { shopkeeperId: new mongoose.Types.ObjectId(shopkeeperId) },
+          { userId: new mongoose.Types.ObjectId(shopkeeperId) },
+        ],
+      };
     }
+    // if (shopkeeperId) {
+    //   matchCondition.shopkeeperId = new mongoose.Types.ObjectId(shopkeeperId);
+    // }
 
     const result = await orderModel.aggregate([
       {
@@ -863,120 +668,6 @@ const getOrdersByMonth = async (req, res) => {
     });
   }
 };
-
-// const calculateCashback = async (req, res) => {
-//   try {
-//     const { userId, shopkeeperId, orderAmount } = req.body;
-
-//     if (!userId || !shopkeeperId || !orderAmount) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
-
-//     // 🏪 Get discount/cashback percent from business table
-//     const business = await businessModel
-//       .findOne({ shopkeeperId })
-//       .select("discountPercentage");
-//     if (!business) {
-//       return res.status(404).json({ message: "Shopkeeper not found" });
-//     }
-
-//     const cashbackPercent = business.discountPercentage || 0;
-//     const totalCashback = (orderAmount * cashbackPercent) / 100;
-
-//     // 🧮 Cashback distribution setup (percentage from env)
-//     const distribution = {
-//       customer: (totalCashback * process.env.CUSTOMER_PERCENTAGE) / 100,
-//       referrer: (totalCashback * process.env.REFERRER_PERCENTAGE) / 100,
-//       ror: (totalCashback * process.env.ROR_PERCENTAGE) / 100,
-//       level: (totalCashback * process.env.LEVEL_PERCENTAGE) / 100,
-//       irot1: (totalCashback * process.env.IROT1_PERCENTAGE) / 100,
-//       irot2: (totalCashback * process.env.IROT2_PERCENTAGE) / 100,
-//       tiup: (totalCashback * process.env.TIUP_PERCENTAGE) / 100,
-//       superadmin: (totalCashback * process.env.SUPERADMIN_PERCENTAGE) / 100,
-//     };
-
-//     // 🧍 Find main user (customer)
-//     const user = await userModel.findById(userId);
-//     if (!user) return res.status(404).json({ message: "User not found" });
-
-//     // 👥 Find referrer (direct)
-//     const referrer =
-//       user.referalUser &&
-//       (await userModel
-//         .findById(user.referalUser)
-//         .select("firstName lastName mobile"));
-
-//     // 🔗 Get up to 10-level referral chain
-//     let currentRef = user.referalUser;
-//     const levelUsers = [];
-//     let level = 1;
-
-//     while (currentRef && level <= 10) {
-//       const refUser = await userModel
-//         .findById(currentRef)
-//         .select("firstName lastName email mobile referalUser");
-//       if (!refUser) break;
-
-//       levelUsers.push(refUser);
-//       currentRef = refUser.referalUser;
-//       level++;
-//     }
-
-//     const perLevelAmount =
-//       levelUsers.length > 0 ? distribution.level / levelUsers.length : 0;
-
-//     const levelDistribution = levelUsers.map((u, index) => ({
-//       level: index + 1,
-//       userId: u._id,
-//       name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
-//       mobile: u.mobile,
-//       cashback: perLevelAmount,
-//     }));
-
-//     // 🧾 Map actual cashback recipients
-//     const cashbackReceivers = {
-//       customer: {
-//         userId: user._id,
-//         name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-//         cashback: distribution.customer,
-//       },
-//       referrer: referrer
-//         ? {
-//             userId: referrer._id,
-//             name: `${referrer.firstName || ""} ${
-//               referrer.lastName || ""
-//             }`.trim(),
-//             cashback: distribution.referrer,
-//           }
-//         : null,
-//       tiup: {
-//         // 🏪 Shopkeeper
-//         shopkeeperId,
-//         cashback: distribution.tiup,
-//       },
-//       superadmin: {
-//         // 🏢 Main company
-//         name: "SuperAdmin",
-//         cashback: distribution.superadmin,
-//       },
-//       levels: levelDistribution,
-//     };
-
-//     // ✅ Return all calculated result
-//     return res.status(200).json({
-//       message: "Cashback calculation successful",
-//       orderAmount,
-//       cashbackPercent,
-//       totalCashback,
-//       distribution,
-//       cashbackReceivers,
-//       totalLevels: levelUsers.length,
-//     });
-//   } catch (err) {
-//     console.error("Error calculating cashback:", err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
 
 const calculateCashback = async (req, res) => {
   try {

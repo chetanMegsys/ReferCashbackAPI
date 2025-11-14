@@ -10,64 +10,60 @@ const getUser = async (req, res) => {
   try {
     const { id } = req.body;
 
-    if (!id || id === "") {
-      const userModel = await userModel.find();
-      if (!userModel) {
-        return res
-          .status(404)
-          .send({ msg: "No userModel present", data: null });
+    // If no ID → return all users
+    if (!id) {
+      const users = await userModel.find();
+      if (!users || users.length === 0) {
+        return res.status(404).send({ msg: "No users present", data: null });
       }
       return res
         .status(200)
-        .send({ msg: "userModel fetched successfully", data: userModel });
-    } else {
-      const user = await userModel.findById(id);
-
-      if (!user) {
-        return res.status(404).send({ msg: "User not found", data: null });
-      }
-      let userData = user;
-      const referredUsers = await userModel
-        .find({ referalUser: id })
-        .select("firstName lastName mobile email levelId createdAt imageUrl");
-
-      if (user.role === "shopkeeper") {
-        const business = await businessModel
-          .findOne({ shopkeeperId: user._id })
-          .populate("categories");
-
-        // ✅ convert to plain JS object for easy modification
-        let businessObj = business ? business.toObject() : null;
-        if (
-          businessObj &&
-          businessObj.location &&
-          businessObj.location.coordinates
-        ) {
-          const latitude = businessObj.location.coordinates[1];
-          const longitude = businessObj.location.coordinates[0];
-
-          // Update the location object
-          businessObj.location = { latitude, longitude };
-
-          // ✅ Add latitude and longitude directly to the business object
-          // businessObj.latitude = latitude;
-          // businessObj.longitude = longitude;
-        }
-
-        userData = {
-          ...user.toObject(),
-          business: businessObj,
-          referredUsers: referredUsers,
-        };
-      }
-      userData = {
-        ...user.toObject(),
-        referredUsers: referredUsers,
-      };
-      return res
-        .status(200)
-        .send({ msg: "User fetched successfully", data: userData });
+        .send({ msg: "Users fetched successfully", data: users });
     }
+
+    // Fetch single user
+    const user = await userModel.findById(id);
+    if (!user) {
+      return res.status(404).send({ msg: "User not found", data: null });
+    }
+
+    // Fetch referred users
+    const referredUsers = await userModel
+      .find({ referalUser: id })
+      .select("firstName lastName mobile email levelId createdAt imageUrl");
+
+    let businessObj = null;
+
+    // If shopkeeper → fetch business
+    if (user.role === "shopkeeper") {
+      const business = await businessModel
+        .findOne({ shopkeeperId: user._id })
+        .populate("categories");
+
+      if (business) {
+        businessObj = business.toObject();
+
+        // Convert GeoJSON coordinates → latitude, longitude
+        if (
+          businessObj.location &&
+          businessObj.location.coordinates?.length === 2
+        ) {
+          const [longitude, latitude] = businessObj.location.coordinates;
+          businessObj.location = { latitude, longitude };
+        }
+      }
+    }
+
+    // Prepare final response
+    const userData = {
+      ...user.toObject(),
+      business: businessObj, // null if not shopkeeper
+      referredUsers,
+    };
+
+    return res
+      .status(200)
+      .send({ msg: "User fetched successfully", data: userData });
   } catch (error) {
     return res.status(500).send({ msg: error.message });
   }

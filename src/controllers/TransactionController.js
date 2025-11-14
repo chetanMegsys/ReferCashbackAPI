@@ -125,12 +125,21 @@ const getUserTransaction = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          localField: "userId",
+          localField: "order.shopkeeperId",
           foreignField: "_id",
           as: "user",
         },
       },
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "shopkeeper",
+        },
+      },
+      { $unwind: { path: "$shopkeeper", preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
           actualDate: {

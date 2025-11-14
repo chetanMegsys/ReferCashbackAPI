@@ -49,12 +49,23 @@ transactionSchema.pre("validate", async function (next) {
   let uniqueId;
   let isUnique = false;
 
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
   while (!isUnique) {
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-    uniqueId = `RCT${dd}${mm}${yy}${randomNum}`;
+    // Pick two random letters
+    const letterPart =
+      letters[Math.floor(Math.random() * letters.length)] +
+      letters[Math.floor(Math.random() * letters.length)];
+
+    // 7-digit random number
+    const randomNum = Math.floor(100000 + Math.random() * 999999);
+
+    uniqueId = `RCT${dd}${mm}${yy}${letterPart}${randomNum}`;
+
     const exists = await mongoose.models.transactions.findOne({
       transactionId: uniqueId,
     });
+
     if (!exists) isUnique = true;
   }
 
