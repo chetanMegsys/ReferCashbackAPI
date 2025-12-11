@@ -102,6 +102,7 @@ const registerUser = async (req, res) => {
       panCardNumber,
       aadhaarCardNumber,
       rationCardNumber,
+      status: "active",
     };
 
     // 7️⃣ Save new user
@@ -182,29 +183,65 @@ const login = async (req, res) => {
   }
 };
 
+// const verifyToken = async (req, res, next) => {
+//   try {
+//     let token = req.headers["authorization"]; // Bearer <token>
+
+//     if (!token) {
+//       return res
+//         .status(401)
+//         .json({ status: false, msg: "Access Denied. No Token Provided." });
+//     }
+
+//     token = token.split(" ")[1];
+
+//     jwt.verify(token, process.env.SECRET_KEY, function (err, decoded) {
+//       if (err)
+//         return res
+//           .status(500)
+//           .send({ auth: false, message: "Failed to authenticate token." });
+//       // if everything good, save to request for use in other routes
+//       req.userId = decoded.id;
+//       next();
+//     });
+//   } catch (error) {
+//     return res.status(401).send({ msg: error.message });
+//   }
+// };
 const verifyToken = async (req, res, next) => {
   try {
     let token = req.headers["authorization"]; // Bearer <token>
 
     if (!token) {
-      return res
-        .status(401)
-        .json({ status: false, msg: "Access Denied. No Token Provided." });
+      return res.status(401).json({
+        status: false,
+        msg: "Access Denied. No Token Provided.",
+      });
     }
-
+    // Extract token from: Bearer <token>
     token = token.split(" ")[1];
 
-    jwt.verify(token, process.env.SECRET_KEY, function (err, decoded) {
-      if (err)
-        return res
-          .status(500)
-          .send({ auth: false, message: "Failed to authenticate token." });
-      // if everything good, save to request for use in other routes
-      req.userId = decoded.id;
-      next();
-    });
+    // Decode + verify
+    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+
+    // Attach userId
+    req.userId = decoded.id;
+
+    // Fetch full user details (IMPORTANT)
+    const user = await userModel.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({ msg: "Invalid token or user not found" });
+    }
+
+    // Attach full user object to request
+    req.user = user;
+
+    // Continue
+    next();
   } catch (error) {
-    return res.status(401).send({ msg: error.message });
+    console.log("TOKEN ERROR:", error);
+    return res.status(401).json({ msg: "Invalid or expired token" });
   }
 };
 

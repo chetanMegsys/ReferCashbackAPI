@@ -10,7 +10,7 @@ const businessRoute = require("./src/routes/businessRoute");
 const orderRoute = require("./src/routes/orderRoute");
 const transactionRoute = require("./src/routes/transactionRoute");
 const categoryRoute = require("./src/routes/categoryRoute");
-
+const companyRoute = require("./src/routes/companyRoute");
 const auth = require("./src/controllers/AuthController");
 
 // Enable CORS for all routes
@@ -33,6 +33,7 @@ app.use(express.static("./public"));
 app.use("/auth", authRoute);
 app.use("/user", userRoute);
 app.use("/business", businessRoute);
+app.use("/comapany", companyRoute);
 app.use("/order", orderRoute);
 app.use("/transaction", transactionRoute);
 app.use("/category", categoryRoute);

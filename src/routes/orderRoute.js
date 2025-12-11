@@ -1,6 +1,7 @@
 const express = require("express");
 const Router = express.Router();
 const orderController = require("../controllers/OrderController");
+const AuthController = require("../controllers/AuthController");
 
 Router.post("/getWalletDetails", orderController.getWalletDetails);
 Router.post("/createOrder", orderController.createOrder);

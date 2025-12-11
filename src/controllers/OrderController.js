@@ -6,12 +6,12 @@ const transactionModel = require("../models/transactionModel");
 const calculateCashbackHelper = require("../CommanFuntion/calculateCashbackHelper");
 
 const getWalletDetails = async (userId) => {
+
   const user = await userModel
     .findById(userId)
     .select(
       "walletDetails.balance walletDetails.cashbackPoints walletDetails.referralPoints"
     );
-
   if (!user || !user.walletDetails) {
     return { balance: 0, cashback: 0, referral: 0 };
   }
