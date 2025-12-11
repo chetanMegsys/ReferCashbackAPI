@@ -300,9 +300,9 @@ const acceptOrRejectOrder = async (req, res) => {
 
       // 🔹 Multi-level cashback: LEVELS, IROT-1, IROT-2
       const multiLevelGroups = [
-        { group: cashbackReceivers.levels, type: "LEVELS" },
-        { group: cashbackReceivers.irot1, type: "IROT-1" },
-        { group: cashbackReceivers.irot2, type: "IROT-2" },
+        { group: cashbackReceivers.levels, type: "loyalty points" },
+        { group: cashbackReceivers.irot1, type: "experience points-1" },
+        { group: cashbackReceivers.irot2, type: "experience points 2" },
       ];
 
       for (const { group, type } of multiLevelGroups) {
@@ -321,7 +321,7 @@ const acceptOrRejectOrder = async (req, res) => {
               orderId: order._id,
               amount: entry.cashback,
               category: "cashback",
-              narration: `${userName} ${type} cashback`,
+              narration: `${userName} ${type} `,
             });
           }
         }
@@ -341,7 +341,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.ror.receiver.cashback,
           category: "cashback",
-          narration: `${userName} ROR cashback`,
+          narration: `${userName} RORP cashback`,
         });
       }
 
