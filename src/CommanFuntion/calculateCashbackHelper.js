@@ -34,6 +34,7 @@ const calculateCashbackHelper = async ({
   const irot2Percent = Number(process.env.IROT2_PERCENTAGE) || 2;
   const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE) || 5;
   const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE) || 10;
+  const adminPercent = Number(process.env.ADMIN) || 10;
 
   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
   const shopkeeper = await userModel.findOne({ _id: shopkeeperId });
@@ -305,10 +306,15 @@ const calculateCashbackHelper = async ({
   const superAdminTotal = Number(
     ((totalCashback * superAdminPercent) / 100).toFixed(2)
   );
+  const adminTotal = Number(((totalCashback * adminPercent) / 100).toFixed(2));
 
   const superAdminDistribution = {
     ...adminUsers.toObject?.(), // handles Mongoose doc or plain object
     cashback: superAdminTotal,
+  };
+  const adminDistribution = {
+    ...adminUsers.toObject?.(), // handles Mongoose doc or plain object
+    cashback: adminTotal,
   };
 
   // 🧩 Cashback mapping
@@ -338,6 +344,7 @@ const calculateCashbackHelper = async ({
       cashback: Number(((totalCashback * shopkeeperPercent) / 100).toFixed(2)),
     },
     superadmin: [superAdminDistribution],
+    admin: [adminDistribution],
     levels: levelDistribution,
     irot1: irot1Distribution,
     irot2: irot2Distribution,
@@ -356,6 +363,7 @@ const calculateCashbackHelper = async ({
     referrer: cashbackReceivers.referrer?.cashback || 0,
     shopkeeper: cashbackReceivers.shopkeeper.cashback || 0,
     superadmin: superAdminDistribution.cashback,
+    admin: adminDistribution.cashback,
     levels: levelDistribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot1: irot1Distribution.reduce((acc, cur) => acc + cur.cashback, 0),
     irot2: irot2Distribution.reduce((acc, cur) => acc + cur.cashback, 0),

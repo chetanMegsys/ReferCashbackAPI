@@ -6,7 +6,6 @@ const transactionModel = require("../models/transactionModel");
 const calculateCashbackHelper = require("../CommanFuntion/calculateCashbackHelper");
 
 const getWalletDetails = async (userId) => {
-
   const user = await userModel
     .findById(userId)
     .select(
@@ -533,9 +532,6 @@ const getOrdersByMonth = async (req, res) => {
         ],
       };
     }
-    // if (shopkeeperId) {
-    //   matchCondition.shopkeeperId = new mongoose.Types.ObjectId(shopkeeperId);
-    // }
 
     const result = await orderModel.aggregate([
       {
@@ -616,6 +612,7 @@ const getOrdersByMonth = async (req, res) => {
               date: "$formattedDate",
               amount: "$amount",
               status: "$status",
+              isWalletSelected: "$isWalletSelected",
               businessName: "$business.businessName",
 
               // 👤 User info

@@ -136,6 +136,8 @@ const registerUser = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    console.log("dkccdcwc bnch ");
+
     const { mobile, password } = req.body;
     if (!mobile || !password) {
       return res
@@ -152,9 +154,7 @@ const login = async (req, res) => {
     //Password Validation
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res
-        .status(400)
-        .send({ msg: "Mobile number and password does not match" });
+      return res.status(400).send({ msg: "Incorrect password" });
     }
 
     //Token generation
@@ -174,6 +174,9 @@ const login = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    if (user) {
+      user.password = undefined;
+    }
     return res.status(200).send({
       msg: "Login successful",
       data: { user, accessToken },

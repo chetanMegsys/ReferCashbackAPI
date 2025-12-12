@@ -1,6 +1,6 @@
 const { compare } = require("bcrypt");
 
-const getCompanyDetails = async (req, res) => {
+const   getCompanyDetails = async (req, res) => {
   try {
     const { id, role } = req.body;
 
