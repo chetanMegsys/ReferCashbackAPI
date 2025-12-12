@@ -294,7 +294,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderId: order._id,
           amount: cashbackReceivers.referrer.cashback,
           category: "cashback",
-          narration: `${userName} Referral cashback`,
+          narration: `${userName} reward points`,
         });
       }
 
