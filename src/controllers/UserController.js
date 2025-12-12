@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 
 const userModel = require("./../models/userModel");
+const transactionModel = require("./../models/transactionModel");
+const orderModel = require("./../models/orderModel");
 const businessModel = require("../models/businessModel");
 const { json } = require("body-parser");
 
@@ -256,9 +258,64 @@ const updateProfilePic = async (req, res) => {
   }
 };
 
+const dashboardCounts = async (req, res) => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const activeUsersCount = await userModel.countDocuments({
+      status: "active",
+    });
+
+    const totalOrderAmountData = await orderModel.aggregate([
+      { $match: { status: "Accepted" } },
+      { $group: { _id: null, totalAmount: { $sum: "$amount" } } },
+    ]);
+
+    const totalOrderAmount =
+      totalOrderAmountData.length > 0 ? totalOrderAmountData[0].totalAmount : 0;
+
+    const thisMonthOrderAmountData = await orderModel.aggregate([
+      {
+        $match: {
+          status: "Accepted",
+          createdAt: { $gte: monthStart, $lte: now },
+        },
+      },
+      { $group: { _id: null, totalAmount: { $sum: "$amount" } } },
+    ]);
+
+    const thisMonthOrderAmount =
+      thisMonthOrderAmountData.length > 0
+        ? thisMonthOrderAmountData[0].totalAmount
+        : 0;
+
+    const totalTransactionCount = await transactionModel.countDocuments();
+
+    const thisMonthTransactionCount = await transactionModel.countDocuments({
+      date: { $gte: monthStart, $lte: now },
+    });
+
+    return res.status(200).json({
+      success: true,
+      dashboardCounts: {
+        activeUsersCount,
+        totalOrderAmount,
+        thisMonthOrderAmount,
+        totalTransactionCount,
+        thisMonthTransactionCount,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   updateUser: updateUser,
   getUser: getUser,
   updateProfilePic: updateProfilePic,
   deleteUser: deleteUser,
+  dashboardCounts,
 };

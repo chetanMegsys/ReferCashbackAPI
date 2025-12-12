@@ -6,5 +6,6 @@ Router.post("/updateUser", UserController.updateUser);
 Router.post("/getUser", UserController.getUser);
 Router.post("/deleteUser", UserController.deleteUser);
 Router.post("/updateProfilePic", UserController.updateProfilePic);
+Router.post("/dashboardCounts", UserController.dashboardCounts);
 
 module.exports = Router;

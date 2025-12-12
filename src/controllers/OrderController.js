@@ -678,6 +678,7 @@ const graph = async (req, res) => {
       {
         $match: {
           createdAt: { $gte: start, $lte: now },
+          status: "Accepted",
         },
       },
       {
@@ -712,22 +713,18 @@ const graph = async (req, res) => {
     let seriesLineData = [];
 
     let current = new Date(start);
-    // Loop for 12 months
     for (let i = 0; i < 12; i++) {
       const m = current.getMonth();
       const y = current.getFullYear();
 
-      // Month-Year label
       xAxisdata.push(`${monthNames[m]}-${y}`);
 
-      // Check if we have aggregated data for this month-year
       const found = result.find(
         (item) => item._id.month === m + 1 && item._id.year === y
       );
 
       seriesLineData.push(found ? found.totalAmount : 0);
 
-      // Move to next month
       current.setMonth(current.getMonth() + 1);
     }
     return res.status(200).json({
@@ -750,5 +747,5 @@ module.exports = {
   cancelOrder: cancelOrder,
   getOrdersByMonth: getOrdersByMonth,
   calculateCashback: calculateCashback,
-  graph: graph,
+  graph,
 };
