@@ -24,37 +24,6 @@ const getWalletDetails = async (userId) => {
   };
 };
 
-// const getOrders = async (req, res) => {
-//   const { id, orderId, shopkeeperId, userId, businessId } = req.body;
-//   let query = {};
-
-//   if (id) {
-//     query._id = id;
-//   }
-//   if (orderId) {
-//     query.orderId = orderId;
-//   }
-//   if (shopkeeperId) {
-//     query.shopkeeperId = shopkeeperId;
-//   }
-//   try {
-//     const ordersData = await orderModel
-//       .find(query)
-//       .sort({ createdAt: -1 })
-//       .populate("userId")
-//       .populate("businessId")
-//       .populate("shopkeeperId");
-//     if (!ordersData) {
-//       return res.status(400).send({ msg: "No orders present" });
-//     }
-//     return res
-//       .status(200)
-//       .send({ msg: "Orders fetched sucessfully", data: ordersData });
-//   } catch (error) {
-//     return res.status(400).send({ msg: error.message });
-//   }
-// };
-
 const getOrders = async (req, res) => {
   const { shopkeeperId, orderId, status } = req.body; // changed userId to shopkeeperId
 
@@ -693,7 +662,82 @@ const calculateCashback = async (req, res) => {
     });
     return res.status(200).json(result);
   } catch (err) {
-    console.error("Error calculating cashback:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const graph = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 1);
+    start.setDate(1);
+    start.setMonth(start.getMonth() - 11);
+    const result = await orderModel.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: start, $lte: now },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 },
+      },
+    ]);
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    let xAxisdata = [];
+    let seriesLineData = [];
+
+    let current = new Date(start);
+    // Loop for 12 months
+    for (let i = 0; i < 12; i++) {
+      const m = current.getMonth();
+      const y = current.getFullYear();
+
+      // Month-Year label
+      xAxisdata.push(`${monthNames[m]}-${y}`);
+
+      // Check if we have aggregated data for this month-year
+      const found = result.find(
+        (item) => item._id.month === m + 1 && item._id.year === y
+      );
+
+      seriesLineData.push(found ? found.totalAmount : 0);
+
+      // Move to next month
+      current.setMonth(current.getMonth() + 1);
+    }
+    return res.status(200).json({
+      monthWiseAmount: {
+        xAxisdata,
+        seriesLineData,
+      },
+    });
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -706,4 +750,5 @@ module.exports = {
   cancelOrder: cancelOrder,
   getOrdersByMonth: getOrdersByMonth,
   calculateCashback: calculateCashback,
+  graph: graph,
 };
