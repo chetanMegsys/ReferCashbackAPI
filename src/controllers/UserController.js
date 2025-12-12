@@ -8,11 +8,15 @@ const { json } = require("body-parser");
 
 const getUser = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, role } = req.body;
 
-    // If no ID → return all users
     if (!id) {
-      const users = await userModel.find();
+      const users = [];
+      if (role) {
+        users = await userModel.find({ role: role });
+      } else {
+        users = await userModel.find();
+      }
       if (!users || users.length === 0) {
         return res.status(404).send({ msg: "No users present", data: null });
       }
@@ -72,8 +76,6 @@ const getUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id, rationCardNumber } = req.body;
-    console.log(req.body);
-
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
     }
@@ -135,6 +137,27 @@ const updateUser = async (req, res) => {
     return res.status(200).send({
       msg: "User updated successfully",
       data: updatedUser,
+    });
+  } catch (error) {
+    return res.status(500).send({ msg: error.message });
+  }
+};
+const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    const user = await userModel.findOneAndUpdate(
+      { _id: userId, status: "active" },
+      { $set: { status: "inactive" } },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).send({ msg: "User not found" });
+    }
+
+    return res.status(200).send({
+      msg: "User deleted successfully",
     });
   } catch (error) {
     return res.status(500).send({ msg: error.message });
@@ -237,4 +260,5 @@ module.exports = {
   updateUser: updateUser,
   getUser: getUser,
   updateProfilePic: updateProfilePic,
+  deleteUser: deleteUser,
 };

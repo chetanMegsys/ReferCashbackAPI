@@ -11,7 +11,6 @@ const getWalletDetails = async (userId) => {
     .select(
       "walletDetails.balance walletDetails.cashbackPoints walletDetails.referralPoints"
     );
-
   if (!user || !user.walletDetails) {
     return { balance: 0, cashback: 0, referral: 0 };
   }
@@ -533,9 +532,6 @@ const getOrdersByMonth = async (req, res) => {
         ],
       };
     }
-    // if (shopkeeperId) {
-    //   matchCondition.shopkeeperId = new mongoose.Types.ObjectId(shopkeeperId);
-    // }
 
     const result = await orderModel.aggregate([
       {
@@ -616,6 +612,7 @@ const getOrdersByMonth = async (req, res) => {
               date: "$formattedDate",
               amount: "$amount",
               status: "$status",
+              isWalletSelected: "$isWalletSelected",
               businessName: "$business.businessName",
 
               // 👤 User info

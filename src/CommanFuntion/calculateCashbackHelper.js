@@ -26,15 +26,15 @@ const calculateCashbackHelper = async ({
   if (!buyer) throw new Error("Buyer not found");
 
   // 🔢 Percentages
-  const customerPercent = Number(process.env.CUSTOMER_PERCENTAGE) ;
-  const directReferralPercent = Number(process.env.REFERRER_PERCENTAGE) ;
-  const rorPercent = Number(process.env.ROR_PERCENTAGE) ;
-  const levelPercent = Number(process.env.LEVEL_PERCENTAGE) ;
-  const irot1Percent = Number(process.env.IROT1_PERCENTAGE) ;
-  const irot2Percent = Number(process.env.IROT2_PERCENTAGE) ;
-  const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE) ;
-  const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE) ;
-  const adminPercent = Number(process.env.ADMIN) ;
+  const customerPercent = Number(process.env.CUSTOMER_PERCENTAGE);
+  const directReferralPercent = Number(process.env.REFERRER_PERCENTAGE);
+  const rorPercent = Number(process.env.ROR_PERCENTAGE);
+  const levelPercent = Number(process.env.LEVEL_PERCENTAGE);
+  const irot1Percent = Number(process.env.IROT1_PERCENTAGE);
+  const irot2Percent = Number(process.env.IROT2_PERCENTAGE);
+  const shopkeeperPercent = Number(process.env.TIUP_PERCENTAGE);
+  const superAdminPercent = Number(process.env.SUPERADMIN_PERCENTAGE);
+  const adminPercent = Number(process.env.ADMIN);
 
   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
   const shopkeeper = await userModel.findOne({ _id: shopkeeperId });

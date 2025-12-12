@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["customer", "shopkeeper", "admin"],
     },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+    },
     imageUrl: {
       type: String,
       default: null,
