@@ -13,9 +13,9 @@ const getUser = async (req, res) => {
     const { id, role } = req.body;
 
     if (!id) {
-      const users = [];
+      let users = [];
       if (role) {
-        users = await userModel.find({ role: role });
+        users = await userModel.find({ role: role.toLowerCase()});
       } else {
         users = await userModel.find();
       }

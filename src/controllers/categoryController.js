@@ -20,7 +20,7 @@ const getCategory = async (req, res) => {
   const { id } = req.body;
   if (!id || id === "") {
     try {
-      const getCategoryData = await categoryModel.find();
+      const getCategoryData = await categoryModel.find({ status: "active" });
       if (!getCategoryData) {
         return res.status(400).send({ msg: "Get Category Failed", data: null });
       }
@@ -32,7 +32,10 @@ const getCategory = async (req, res) => {
     }
   } else {
     try {
-      const categoryData = await categoryModel.findById(id);
+      const categoryData = await categoryModel.findOne({
+        _id: id,
+        status: "active",
+      });
       if (!categoryData) {
         return res
           .status(400)
@@ -46,8 +49,32 @@ const getCategory = async (req, res) => {
     }
   }
 };
+const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id || id === "") {
+      return res.status(400).send({ msg: "Please enter id" });
+    }
+
+    const deleteCategoryData = await categoryModel.findOneAndUpdate(
+      { _id: id, status: "active" },
+      { $set: { status: "inactive" } },
+      { new: true }
+    );
+    if (!deleteCategoryData) {
+      return res
+        .status(400)
+        .send({ msg: "No such category present", data: null });
+    }
+
+    return res.status(200).send({ msg: "Category deleted successfully" });
+  } catch (error) {
+    return res.status(500).send({ msg: error.message });
+  }
+};
 
 module.exports = {
   addCategory: addCategory,
   getCategory: getCategory,
+  deleteCategory,
 };

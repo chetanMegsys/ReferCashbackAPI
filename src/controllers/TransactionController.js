@@ -3,6 +3,7 @@ const transactionModel = require("../models/transactionModel");
 const Orders = require("../models/orderModel");
 const Business = require("../models/businessModel");
 const Users = require("../models/userModel");
+const { paginateArray } = require("../CommanFuntion/Pagination");
 
 const creditAmount = async (req, res) => {
   try {
@@ -82,28 +83,173 @@ const getWalletDetails = async (req, res) => {
   }
 };
 
+// const getUserTransaction = async (req, res) => {
+//   const { userId } = req.body;
+
+//   try {
+//     const sixMonthsAgo = new Date();
+//     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+//     let matchStage = {};
+
+//     if (userId) {
+//       matchStage = {
+//         userId: new mongoose.Types.ObjectId(userId),
+//         date: { $gte: sixMonthsAgo },
+//       };
+//     } else {
+//       matchStage = {
+//         date: { $gte: sixMonthsAgo },
+//       };
+//     }
+//     const result = await transactionModel.aggregate([
+//       {
+//         $match: matchStage,
+//       },
+//       {
+//         $lookup: {
+//           from: "orders",
+//           localField: "orderId",
+//           foreignField: "_id",
+//           as: "order",
+//         },
+//       },
+//       { $unwind: { path: "$order", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "businesses",
+//           localField: "order.businessId",
+//           foreignField: "_id",
+//           as: "business",
+//         },
+//       },
+//       { $unwind: { path: "$business", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "order.shopkeeperId",
+//           foreignField: "_id",
+//           as: "shopkeeper",
+//         },
+//       },
+//       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "userId",
+//           foreignField: "_id",
+//           as: "customer",
+//         },
+//       },
+//       { $unwind: { path: "$shopkeeper", preserveNullAndEmptyArrays: true } },
+//       {
+//         $addFields: {
+//           actualDate: {
+//             $cond: [
+//               { $ifNull: ["$order.createdAt", false] },
+//               "$order.createdAt",
+//               { $ifNull: ["$date", new Date(0)] },
+//             ],
+//           },
+//         },
+//       },
+//       { $match: { actualDate: { $ne: null } } },
+//       {
+//         $addFields: {
+//           month: {
+//             $dateToString: {
+//               format: "%b %Y",
+//               date: { $ifNull: ["$actualDate", new Date(0)] },
+//               timezone: "Asia/Kolkata",
+//             },
+//           },
+//           formattedDate: {
+//             $dateToString: {
+//               format: "%d/%m/%Y %H:%M", // ✅ valid in MongoDB
+//               date: { $ifNull: ["$actualDate", new Date(0)] },
+//               timezone: "Asia/Kolkata",
+//             },
+//           },
+//         },
+//       },
+//       { $sort: { actualDate: -1 } },
+//       {
+//         $group: {
+//           _id: "$month",
+//           monthSort: { $first: "$actualDate" },
+//           transactions: { $push: "$$ROOT" },
+//         },
+//       },
+//       {
+//         $project: {
+//           "user.password": 0,
+//           "shopkeeper.password": 0,
+//         },
+//       },
+//       { $sort: { monthSort: -1 } },
+//     ]);
+
+//     // ✅ Convert to 12-hour format with AM/PM manually
+//     const formatTo12Hour = (dateStr) => {
+//       try {
+//         const date = new Date(dateStr);
+//         return date.toLocaleString("en-IN", {
+//           day: "2-digit",
+//           month: "2-digit",
+//           year: "numeric",
+//           hour: "2-digit",
+//           minute: "2-digit",
+//           hour12: true,
+//           timeZone: "Asia/Kolkata",
+//         });
+//       } catch {
+//         return dateStr;
+//       }
+//     };
+
+//     const data = {};
+//     result.forEach((item) => {
+//       data[item._id] = item.transactions.map((t) => ({
+//         ...t,
+//         formattedDate: formatTo12Hour(t.actualDate),
+//       }));
+//     });
+
+//     return res.status(200).send({
+//       msg: "Transactions retrieved successfully",
+//       data,
+//     });
+//   } catch (error) {
+//     console.error("❌ Transaction Error Stack:", error.stack);
+//     console.error("❌ Transaction Error Message:", error.message);
+//     return res.status(500).send({ msg: error.message, data: null });
+//   }
+// };
+
 const getUserTransaction = async (req, res) => {
-  const { userId } = req.body;
-
-  if (!userId) {
-    return res.status(400).send({ msg: "User ID is required", data: null });
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    return res.status(400).send({ msg: "Invalid User ID", data: null });
-  }
+  const {
+    userId,
+    pageNumber,
+    pageLimit,
+    isPagination,
+    isMonthWise = true,
+  } = req.body;
 
   try {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
+    let matchStage = {
+      date: { $gte: sixMonthsAgo },
+    };
+
+    if (userId) {
+      matchStage.userId = new mongoose.Types.ObjectId(userId);
+    }
+
     const result = await transactionModel.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(userId),
-          date: { $gte: sixMonthsAgo },
-        },
-      },
+      { $match: matchStage },
+
       {
         $lookup: {
           from: "orders",
@@ -113,6 +259,7 @@ const getUserTransaction = async (req, res) => {
         },
       },
       { $unwind: { path: "$order", preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: "businesses",
@@ -122,99 +269,134 @@ const getUserTransaction = async (req, res) => {
         },
       },
       { $unwind: { path: "$business", preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: "users",
           localField: "order.shopkeeperId",
           foreignField: "_id",
-          as: "user",
+          as: "shopkeeper",
         },
       },
-      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$shopkeeper", preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: "users",
           localField: "userId",
           foreignField: "_id",
-          as: "shopkeeper",
+          as: "customer",
         },
       },
-      { $unwind: { path: "$shopkeeper", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+
       {
         $addFields: {
           actualDate: {
-            $cond: [
-              { $ifNull: ["$order.createdAt", false] },
-              "$order.createdAt",
-              { $ifNull: ["$date", new Date(0)] },
-            ],
+            $ifNull: ["$order.createdAt", "$date"],
           },
         },
       },
-      { $match: { actualDate: { $ne: null } } },
+
       {
         $addFields: {
           month: {
             $dateToString: {
               format: "%b %Y",
-              date: { $ifNull: ["$actualDate", new Date(0)] },
-              timezone: "Asia/Kolkata",
-            },
-          },
-          formattedDate: {
-            $dateToString: {
-              format: "%d/%m/%Y %H:%M", // ✅ valid in MongoDB
-              date: { $ifNull: ["$actualDate", new Date(0)] },
+              date: "$actualDate",
               timezone: "Asia/Kolkata",
             },
           },
         },
       },
+
       { $sort: { actualDate: -1 } },
+
       {
-        $group: {
-          _id: "$month",
-          monthSort: { $first: "$actualDate" },
-          transactions: { $push: "$$ROOT" },
+        $project: {
+          transactionType: 1,
+          category: 1,
+          amount: 1,
+          narration: 1,
+          actualDate: 1,
+          month: 1,
+          transactionId: 1,
+
+          "order._id": 1,
+          "order.amount": 1,
+          "order.status": 1,
+          "order.createdAt": 1,
+
+          "business.businessName": 1,
+          "business.businessId": 1,
+
+          "shopkeeper.firstName": 1,
+          "shopkeeper.lastName": 1,
+          "shopkeeper.mobile": 1,
+          "shopkeeper.imageUrl": 1,
+
+          "customer.firstName": 1,
+          "customer.lastName": 1,
+          "customer.mobile": 1,
+          "customer.imageUrl": 1,
+
+          // "shopkeeper.password": 0,
+          // "customer.password": 0,
         },
       },
-      { $sort: { monthSort: -1 } },
     ]);
 
-    // ✅ Convert to 12-hour format with AM/PM manually
-    const formatTo12Hour = (dateStr) => {
-      try {
-        const date = new Date(dateStr);
-        return date.toLocaleString("en-IN", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-          timeZone: "Asia/Kolkata",
-        });
-      } catch {
-        return dateStr;
-      }
-    };
+    // ✅ Date formatter
+    const formatTo12Hour = (date) =>
+      new Date(date).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "Asia/Kolkata",
+      });
 
-    const data = {};
-    result.forEach((item) => {
-      data[item._id] = item.transactions.map((t) => ({
+    // 🔹 Pagination applied on flat list
+    const paginated = paginateArray({
+      data: result,
+      page: pageNumber,
+      limit: pageLimit,
+      isPagination: isPagination,
+    });
+
+    let finalData;
+
+    if (isMonthWise) {
+      finalData = paginated.data.reduce((acc, t) => {
+        if (!acc[t.month]) acc[t.month] = [];
+
+        acc[t.month].push({
+          ...t,
+          formattedDate: formatTo12Hour(t.actualDate),
+        });
+
+        return acc;
+      }, {});
+    } else {
+      finalData = paginated.data.map((t) => ({
         ...t,
         formattedDate: formatTo12Hour(t.actualDate),
       }));
-    });
+    }
 
     return res.status(200).send({
       msg: "Transactions retrieved successfully",
-      data,
+      data: finalData,
+      pagination: paginated.pagination,
     });
   } catch (error) {
-    console.error("❌ Transaction Error Stack:", error.stack);
-    console.error("❌ Transaction Error Message:", error.message);
-    return res.status(500).send({ msg: error.message, data: null });
+    console.error("❌ Transaction Error:", error);
+    return res.status(500).send({
+      msg: error.message,
+      data: null,
+    });
   }
 };
 

@@ -14,6 +14,10 @@ const categorySchema = new mongoose.Schema(
       max: 100, // optional, ensures discount <= 100%
       default: 0, // optional default
     },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+    },
   },
   { timestamps: true }
 );
