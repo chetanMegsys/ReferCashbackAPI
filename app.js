@@ -12,6 +12,7 @@ const transactionRoute = require("./src/routes/transactionRoute");
 const categoryRoute = require("./src/routes/categoryRoute");
 const companyRoute = require("./src/routes/companyRoute");
 const auth = require("./src/controllers/AuthController");
+const walletBalance = require("./src/routes/walletBalanceRoute");
 
 // Enable CORS for all routes
 app.use(cors());
@@ -33,6 +34,8 @@ app.use(express.static("./public"));
 app.use("/auth", authRoute);
 app.use("/user", userRoute);
 app.use("/business", businessRoute);
+// app.use("/business", businessRoute);
+app.use("/walletBalance", walletBalance);
 app.use("/comapany", companyRoute);
 app.use("/order", orderRoute);
 app.use("/transaction", transactionRoute);

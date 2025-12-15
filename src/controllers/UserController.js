@@ -1,4 +1,3 @@
-const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
 
@@ -7,24 +6,55 @@ const transactionModel = require("./../models/transactionModel");
 const orderModel = require("./../models/orderModel");
 const businessModel = require("../models/businessModel");
 const { json } = require("body-parser");
+const { paginateArray } = require("../CommanFuntion/Pagination");
 
 const getUser = async (req, res) => {
   try {
-    const { id, role } = req.body;
+    const { id, role, pageNumber, pageLimit, isPagination, searchText } =
+      req.body;
 
     if (!id) {
       let users = [];
       if (role) {
-        users = await userModel.find({ role: role.toLowerCase()});
+        users = await userModel
+          .find({ role: role.toLowerCase() })
+          .select("-password -refreshToken -status -createdAt -updatedAt");
       } else {
         users = await userModel.find();
       }
       if (!users || users.length === 0) {
-        return res.status(404).send({ msg: "No users present", data: null });
+        return res
+          .status(404)
+          .send({ msg: "No users present", data: null })
+          .select("-password -refreshToken -status -createdAt -updatedAt");
       }
+      const paginated = paginateArray({
+        data: users,
+        page: pageNumber,
+        limit: pageLimit,
+        isPagination: isPagination,
+        search: searchText,
+        searchKeys: [
+          "firstName",
+          "middleName",
+          "lastName",
+          "email",
+          "mobile",
+          "role",
+          "aadhaarCardNumber",
+          "currentAddress",
+          "panCardNumber",
+          "permanentAddress",
+          "rationCardNumber",
+          "walletDetails.referralPoints",
+          "walletDetails.balance",
+          "walletDetails.cashbackPoints",
+          "walletDetails.levelId",
+        ],
+      });
       return res
         .status(200)
-        .send({ msg: "Users fetched successfully", data: users });
+        .send({ msg: "Users fetched successfully", data: paginated });
     }
 
     // Fetch single user
@@ -144,6 +174,7 @@ const updateUser = async (req, res) => {
     return res.status(500).send({ msg: error.message });
   }
 };
+
 const deleteUser = async (req, res) => {
   try {
     const { userId } = req.body;
@@ -262,6 +293,11 @@ const dashboardCounts = async (req, res) => {
   try {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     const activeUsersCount = await userModel.countDocuments({
       status: "active",
@@ -295,6 +331,9 @@ const dashboardCounts = async (req, res) => {
     const thisMonthTransactionCount = await transactionModel.countDocuments({
       date: { $gte: monthStart, $lte: now },
     });
+    const todaysTransactionCount = await transactionModel.countDocuments({
+      date: { $gte: todayStart, $lte: todayEnd },
+    });
 
     return res.status(200).json({
       success: true,
@@ -304,6 +343,7 @@ const dashboardCounts = async (req, res) => {
         thisMonthOrderAmount,
         totalTransactionCount,
         thisMonthTransactionCount,
+        todaysTransactionCount,
       },
     });
   } catch (error) {

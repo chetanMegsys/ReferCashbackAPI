@@ -239,10 +239,10 @@ const acceptOrRejectOrder = async (req, res) => {
           true
         );
         allTransactions.push({
-          userId: cashbackReceivers.customer.userId,
+          userId: cashbackReceivers?.customer?.userId,
           transactionType: "credit",
-          orderId: order._id,
-          amount: cashbackReceivers.customer.cashback,
+          orderId: order?._id,
+          amount: cashbackReceivers?.customer?.cashback,
           category: "cashback",
           narration: "Cashback received",
         });

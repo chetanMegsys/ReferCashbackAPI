@@ -1,3 +1,4 @@
+const { paginateArray } = require("../CommanFuntion/Pagination");
 const categoryModel = require("../models/categoriesModel");
 
 const addCategory = async (req, res) => {
@@ -17,16 +18,24 @@ const addCategory = async (req, res) => {
 };
 
 const getCategory = async (req, res) => {
-  const { id } = req.body;
+  const { id, pageNumber, pageLimit, isPagination, searchText } = req.body;
   if (!id || id === "") {
     try {
       const getCategoryData = await categoryModel.find({ status: "active" });
       if (!getCategoryData) {
         return res.status(400).send({ msg: "Get Category Failed", data: null });
       }
+      const paginated = paginateArray({
+        data: getCategoryData,
+        page: pageNumber,
+        limit: pageLimit,
+        isPagination: isPagination,
+        search: searchText,
+        searchKeys: ["name"],
+      });
       return res
         .status(200)
-        .send({ msg: "Category Fetched SucessFully", data: getCategoryData });
+        .send({ msg: "Category Fetched SucessFully", data: paginated });
     } catch (error) {
       return res.status(500).send({ msg: error.message });
     }
@@ -49,6 +58,7 @@ const getCategory = async (req, res) => {
     }
   }
 };
+
 const deleteCategory = async (req, res) => {
   try {
     const { id } = req.body;

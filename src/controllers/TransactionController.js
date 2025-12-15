@@ -233,6 +233,8 @@ const getUserTransaction = async (req, res) => {
     pageLimit,
     isPagination,
     isMonthWise = true,
+    orderId,
+    searchText,
   } = req.body;
 
   try {
@@ -242,14 +244,14 @@ const getUserTransaction = async (req, res) => {
     let matchStage = {
       date: { $gte: sixMonthsAgo },
     };
-
     if (userId) {
       matchStage.userId = new mongoose.Types.ObjectId(userId);
+    } else if (orderId) {
+      matchStage.orderId = new mongoose.Types.ObjectId(orderId);
     }
 
     const result = await transactionModel.aggregate([
       { $match: matchStage },
-
       {
         $lookup: {
           from: "orders",
@@ -364,6 +366,25 @@ const getUserTransaction = async (req, res) => {
       page: pageNumber,
       limit: pageLimit,
       isPagination: isPagination,
+      search: searchText, // 🔍 from req.body or req.query
+      searchKeys: [
+        "narration",
+        "category",
+        "transactionType",
+        "amount",
+        "transactionId",
+        "month",
+        "business.businessName",
+        "shopkeeper.firstName",
+        "shopkeeper.lastName",
+        "shopkeeper.mobile",
+        "customer.firstName",
+        "customer.lastName",
+        "customer.mobile",
+        "order.status",
+        "order.amount",
+        "order.amount",
+      ],
     });
 
     let finalData;
@@ -399,6 +420,8 @@ const getUserTransaction = async (req, res) => {
     });
   }
 };
+
+
 
 module.exports = {
   creditAmount: creditAmount,

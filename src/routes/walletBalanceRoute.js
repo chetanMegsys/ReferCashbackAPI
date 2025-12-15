@@ -1,0 +1,8 @@
+const express = require("express");
+const Router = express.Router();
+const WalletBalancesController = require("../controllers/walletBalanceController");
+
+Router.post("/withdrawRequest", WalletBalancesController.withdrawRequest);
+Router.post("/addWalletBalance", WalletBalancesController.addWalletBalance);
+
+module.exports = Router;
