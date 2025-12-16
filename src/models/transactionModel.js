@@ -20,7 +20,15 @@ const transactionSchema = mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ["order", "cashback", "refund", "credit", "adminCredit"],
+    enum: [
+      "order",
+      "cashback",
+      "refund",
+      "credit",
+      "adminCredit",
+      "withdrawalRequest",
+      "monthlyDeduction",
+    ],
     default: "order",
   },
   date: {

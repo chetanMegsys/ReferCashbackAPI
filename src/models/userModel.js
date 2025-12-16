@@ -134,6 +134,7 @@ const userSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+      nextMonthDeduction: { type: Number, default: 0 },
     },
   },
 

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const walletBalanceModel = require("../models/walletBalanceModel");
 const userModel = require("./../models/userModel");
 const transactionModel = require("./../models/transactionModel");
+const { paginateArray } = require("../CommanFuntion/Pagination");
 
 const withdrawRequest = async (req, res) => {
   try {
@@ -106,7 +107,363 @@ const addWalletBalance = async (req, res) => {
     });
   }
 };
+
+const getWithdrawRequests = async (req, res) => {
+  try {
+    const { withdrawId, pageNumber, pageLimit, isPagination, searchText } =
+      req.body;
+
+    if (!withdrawId) {
+      const allRequests = await walletBalanceModel.aggregate([
+        {
+          $addFields: {
+            statusOrder: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ["$status", "pending"] }, then: 1 },
+                  { case: { $eq: ["$status", "approved"] }, then: 2 },
+                  { case: { $eq: ["$status", "rejected"] }, then: 3 },
+                ],
+                default: 4,
+              },
+            },
+          },
+        },
+        {
+          $sort: {
+            statusOrder: 1,
+          },
+        },
+        {
+          $lookup: {
+            from: "users", // collection name
+            localField: "userId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            statusOrder: 0,
+            createdAt: 0,
+            updatedAt: 0,
+            __v: 0,
+            "userDetails.password": 0,
+            "userDetails.__v": 0,
+            "userDetails.refreshToken": 0,
+            "userDetails.walletDetails": 0,
+            "userDetails.createdAt": 0,
+            "userDetails.updatedAt": 0,
+            "userDetails.referalUser": 0,
+          },
+        },
+      ]);
+
+      if (!allRequests || allRequests?.length === 0) {
+        return res.status(404).json({ msg: "No withdraw requests found" });
+      }
+
+      const paginated = paginateArray({
+        data: allRequests,
+        page: pageNumber,
+        limit: pageLimit,
+        isPagination,
+        search: searchText,
+        searchKeys: ["amount", "status"],
+      });
+
+      return res.status(200).json({
+        msg: "All Withdraw requests retrieved successfully",
+        data: paginated,
+      });
+    } else {
+      if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
+        return res.status(400).json({ msg: "Invalid withdrawId format" });
+      }
+
+      const request = await walletBalanceModel
+        .findById(withdrawId)
+        .select("-createdAt -updatedAt -__v")
+        .populate({
+          path: "userId",
+          select:
+            "-password -refreshToken -__v -walletDetails -createdAt -updatedAt -referalUser ",
+        });
+
+      if (!request) {
+        return res.status(404).json({ msg: "Withdraw request not found" });
+      }
+      return res.status(200).json({
+        msg: "Withdraw request retrieved successfully",
+        data: request,
+      });
+    }
+  } catch (error) {
+    console.error("❌ Get Withdraw Requests Error:", error);
+    return res.status(500).json({
+      msg: "Internal server error",
+    });
+  }
+};
+
+const approveRejecteWithdrawRequest = async (req, res) => {
+  try {
+    const { withdrawId, action } = req.body;
+    if (!withdrawId) {
+      return res.status(400).json({ msg: "withdrawId is required" });
+    }
+    if (!action || !["approve", "reject"].includes(action)) {
+      return res.status(400).json({ msg: "Valid action is required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
+      return res.status(400).json({ msg: "Invalid withdrawId format" });
+    }
+    const withdrawRequest = await walletBalanceModel.findOne({
+      _id: withdrawId,
+      status: "pending",
+    });
+
+    if (!withdrawRequest) {
+      return res
+        .status(404)
+        .json({ msg: `Withdraw request not found to ${action}` });
+    }
+    let actionText = "";
+    if (action === "approve") {
+      withdrawRequest.status = "approved";
+      actionText = "approved";
+      const newTrans = await transactionModel.create({
+        userId: withdrawRequest?.userId,
+        transactionType: "debit",
+        orderId: null,
+        amount: withdrawRequest.amount,
+        category: "withdrawalRequest",
+        narration: "Withdrawal request approved",
+      });
+
+      if (!newTrans) {
+        return res
+          .status(500)
+          .json({ msg: "Failed to create transaction record" });
+      }
+    } else if (action === "reject") {
+      withdrawRequest.status = "rejected";
+      actionText = "rejected";
+    }
+
+    const savedRequest = await withdrawRequest.save();
+
+    if (action === "approve") {
+      const user = await userModel.findById(savedRequest?.userId);
+
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      if (user.walletDetails.balance < savedRequest.amount) {
+        return res.status(400).json({ msg: "Insufficient wallet balance" });
+      }
+      user.walletDetails.balance -= savedRequest.amount;
+      await user.save();
+
+      const newTrans = await transactionModel.create({
+        userId: savedRequest.userId,
+        transactionType: "debit",
+        orderId: null,
+        amount: savedRequest.amount,
+        category: "withdrawalRequest",
+        narration: "Withdrawal request approved",
+      });
+
+      if (!newTrans) {
+        return res
+          .status(500)
+          .json({ msg: "Failed to create transaction record" });
+      }
+    }
+
+    return res.status(200).json({
+      msg: `Withdraw request ${actionText} successfully`,
+      data: withdrawRequest,
+    });
+  } catch (error) {
+    console.error("❌ Approve/Reject Withdraw Request Error:", error);
+    return res.status(500).json({
+      msg: "Internal server error",
+    });
+  }
+};
+
+const deductWalletBalance = async (req, res) => {
+  try {
+    const DEDUCT_AMOUNT = Number(process.env.DEDUCT_AMOUNT || 10);
+
+    const users = await userModel.find({
+      status: "active",
+      role: { $in: ["shopkeeper", "customer"] },
+    });
+
+    if (!users || users.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No active users found",
+      });
+    }
+
+    const bulkOps = [];
+    const transactions = []; // to store transaction docs
+
+    for (const user of users) {
+      const totalDeduction =
+        DEDUCT_AMOUNT + (user.walletDetails.nextMonthDeduction || 0);
+      let actualDeducted = 0;
+
+      if (user.walletDetails.balance >= totalDeduction) {
+        user.walletDetails.balance -= totalDeduction;
+        user.walletDetails.nextMonthDeduction = 0;
+        actualDeducted = totalDeduction; // full amount deducted
+      } else {
+        actualDeducted = user.walletDetails.balance; // whatever balance we have
+        user.walletDetails.nextMonthDeduction =
+          totalDeduction - user.walletDetails.balance;
+        user.walletDetails.balance = 0;
+      }
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: user._id },
+          update: {
+            $set: {
+              "walletDetails.balance": user.walletDetails.balance,
+              "walletDetails.nextMonthDeduction":
+                user.walletDetails.nextMonthDeduction,
+            },
+          },
+        },
+      });
+
+      // prepare transaction entry for this user
+      if (actualDeducted > 0) {
+        transactions.push({
+          userId: user._id,
+          transactionType: "debit",
+          orderId: null,
+          amount: actualDeducted, // now correct
+          category: "monthlyDeduction",
+          narration: "Amount deducted as monthly wallet maintenance fee",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      // update wallets
+      const result = await userModel.bulkWrite(bulkOps);
+
+      // create transactions
+      if (transactions.length > 0) {
+        await transactionModel.insertMany(transactions);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Deducted successfully ",
+        modifiedCount: result.modifiedCount,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "No users to deduct",
+    });
+  } catch (error) {
+    console.error("Wallet deduction error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+// const deductWalletBalance = async (req, res) => {
+//   try {
+//     const DEDUCT_AMOUNT = Number(process.env.DEDUCT_AMOUNT || 10);
+
+//     const users = await userModel.find({
+//       status: "active",
+//       role: { $in: ["shopkeeper", "customer"] },
+//     });
+
+//     if (!users || users.length === 0) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No active users found",
+//       });
+//     }
+
+//     const bulkOps = [];
+
+//     for (const user of users) {
+//       let totalDeduction =
+//         DEDUCT_AMOUNT + (user.walletDetails.nextMonthDeduction || 0);
+//       let remainingDeduction = totalDeduction;
+
+//       if (user.walletDetails.balance >= totalDeduction) {
+//         user.walletDetails.balance -= totalDeduction;
+//         user.walletDetails.nextMonthDeduction = 0;
+//       } else {
+//         remainingDeduction = totalDeduction - user.walletDetails.balance;
+//         user.walletDetails.balance = 0;
+//         user.walletDetails.nextMonthDeduction = remainingDeduction;
+//       }
+
+//       bulkOps.push({
+//         updateOne: {
+//           filter: { _id: user._id },
+//           update: {
+//             $set: {
+//               "walletDetails.balance": user.walletDetails.balance,
+//               "walletDetails.nextMonthDeduction":
+//                 user.walletDetails.nextMonthDeduction,
+//             },
+//           },
+//         },
+//       });
+//     }
+
+//     if (bulkOps?.length > 0) {
+//       const result = await userModel.bulkWrite(bulkOps);
+//       return res.status(200).json({
+//         success: true,
+//         message: `Deducted successfully`,
+//         modifiedCount: result.modifiedCount,
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "No users to deduct",
+//     });
+//   } catch (error) {
+//     console.error("Wallet deduction error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Something went wrong",
+//     });
+//   }
+// };
+
 module.exports = {
   withdrawRequest,
   addWalletBalance,
+  getWithdrawRequests,
+  approveRejecteWithdrawRequest,
+  deductWalletBalance,
 };

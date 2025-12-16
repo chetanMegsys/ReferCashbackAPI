@@ -4,5 +4,17 @@ const WalletBalancesController = require("../controllers/walletBalanceController
 
 Router.post("/withdrawRequest", WalletBalancesController.withdrawRequest);
 Router.post("/addWalletBalance", WalletBalancesController.addWalletBalance);
+Router.post(
+  "/getWithdrawRequests",
+  WalletBalancesController.getWithdrawRequests
+);
+Router.post(
+  "/approveRejecteWithdrawRequest",
+  WalletBalancesController.approveRejecteWithdrawRequest
+);
+Router.post(
+  "/deductWalletBalance",
+  WalletBalancesController.deductWalletBalance
+);
 
 module.exports = Router;
