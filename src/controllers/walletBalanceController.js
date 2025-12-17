@@ -231,13 +231,13 @@ const approveRejecteWithdrawRequest = async (req, res) => {
   try {
     const { withdrawId, action } = req.body;
     if (!withdrawId) {
-      return res.status(400).json({ msg: "withdrawId is required" });
+      return res.status(500).json({ msg: "withdrawId is required" });
     }
     if (!action || !["approve", "reject"].includes(action)) {
-      return res.status(400).json({ msg: "Valid action is required" });
+      return res.status(500).json({ msg: "Valid action is required" });
     }
     if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
-      return res.status(400).json({ msg: "Invalid withdrawId format" });
+      return res.status(500).json({ msg: "Invalid withdrawId format" });
     }
     const withdrawRequest = await walletBalanceModel.findOne({
       _id: withdrawId,
@@ -256,14 +256,14 @@ const approveRejecteWithdrawRequest = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+      return res.status(500).json({ msg: "User not found" });
     }
 
     let actionText = "";
     if (action === "approve") {
       console.log(user);
       if (user.walletDetails.balance < withdrawRequest.amount) {
-        return res.status(400).json({ msg: "Insufficient wallet balance" });
+        return res.status(500).json({ msg: "Insufficient wallet balance" });
       }
       withdrawRequest.status = "approved";
       actionText = "approved";
@@ -323,7 +323,7 @@ const deductWalletBalance = async (req, res) => {
     }
 
     const bulkOps = [];
-    const transactions = []; // to store transaction docs
+    const transactions = [];
 
     for (const user of users) {
       const totalDeduction =
@@ -333,9 +333,9 @@ const deductWalletBalance = async (req, res) => {
       if (user.walletDetails.balance >= totalDeduction) {
         user.walletDetails.balance -= totalDeduction;
         user.walletDetails.nextMonthDeduction = 0;
-        actualDeducted = totalDeduction; // full amount deducted
+        actualDeducted = totalDeduction;
       } else {
-        actualDeducted = user.walletDetails.balance; // whatever balance we have
+        actualDeducted = user.walletDetails.balance;
         user.walletDetails.nextMonthDeduction =
           totalDeduction - user.walletDetails.balance;
         user.walletDetails.balance = 0;
