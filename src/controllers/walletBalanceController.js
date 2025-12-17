@@ -165,7 +165,7 @@ const getWithdrawRequests = async (req, res) => {
         },
       ]);
 
-      if (!allRequests || allRequests?.length === 0) {
+      if (!allRequests || allRequests.length === 0) {
         return res.status(404).json({ msg: "No withdraw requests found" });
       }
 
@@ -249,24 +249,24 @@ const approveRejecteWithdrawRequest = async (req, res) => {
         .status(404)
         .json({ msg: `Withdraw request not found to ${action}` });
     }
+
+    const user = await userModel.findOne({
+      _id: withdrawRequest.userId,
+      status: "active",
+    });
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
     let actionText = "";
     if (action === "approve") {
+      console.log(user);
+      if (user.walletDetails.balance < withdrawRequest.amount) {
+        return res.status(400).json({ msg: "Insufficient wallet balance" });
+      }
       withdrawRequest.status = "approved";
       actionText = "approved";
-      const newTrans = await transactionModel.create({
-        userId: withdrawRequest?.userId,
-        transactionType: "debit",
-        orderId: null,
-        amount: withdrawRequest.amount,
-        category: "withdrawalRequest",
-        narration: "Withdrawal request approved",
-      });
-
-      if (!newTrans) {
-        return res
-          .status(500)
-          .json({ msg: "Failed to create transaction record" });
-      }
     } else if (action === "reject") {
       withdrawRequest.status = "rejected";
       actionText = "rejected";
@@ -274,16 +274,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
     const savedRequest = await withdrawRequest.save();
 
-    if (action === "approve") {
-      const user = await userModel.findById(savedRequest?.userId);
-
-      if (!user) {
-        return res.status(404).json({ msg: "User not found" });
-      }
-
-      if (user.walletDetails.balance < savedRequest.amount) {
-        return res.status(400).json({ msg: "Insufficient wallet balance" });
-      }
+    if (savedRequest && action === "approve") {
       user.walletDetails.balance -= savedRequest.amount;
       await user.save();
 
@@ -357,7 +348,7 @@ const deductWalletBalance = async (req, res) => {
             $set: {
               "walletDetails.balance": user.walletDetails.balance,
               "walletDetails.nextMonthDeduction":
-                user.walletDetails.nextMonthDeduction,
+                userwalletDetailsnextMonthDeduction,
             },
           },
         },
@@ -453,7 +444,7 @@ const deductWalletBalance = async (req, res) => {
 //       });
 //     }
 
-//     if (bulkOps?.length > 0) {
+//     if (bulkOps.length > 0) {
 //       const result = await userModel.bulkWrite(bulkOps);
 //       return res.status(200).json({
 //         success: true,
