@@ -3,6 +3,7 @@ const walletBalanceModel = require("../models/walletBalanceModel");
 const userModel = require("./../models/userModel");
 const transactionModel = require("./../models/transactionModel");
 const { paginateArray } = require("../CommanFuntion/Pagination");
+const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
 
 const withdrawRequest = async (req, res) => {
   try {
@@ -168,8 +169,17 @@ const getWithdrawRequests = async (req, res) => {
         return res.status(404).json({ msg: "No withdraw requests found" });
       }
 
+      const allRequestsWithFormattedDate = allRequests.map((item) => {
+        const formatted = {
+          ...item,
+          formattedDate: formatTo12Hour(item.createdAt),
+        };
+        delete formatted.createdAt;
+        return formatted;
+      });
+
       const paginated = paginateArray({
-        data: allRequests,
+        data: allRequestsWithFormattedDate,
         page: pageNumber,
         limit: pageLimit,
         isPagination,
@@ -185,22 +195,28 @@ const getWithdrawRequests = async (req, res) => {
       if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
         return res.status(400).json({ msg: "Invalid withdrawId format" });
       }
-
       const request = await walletBalanceModel
         .findById(withdrawId)
-        .select("-createdAt -updatedAt -__v")
+        .select("-updatedAt -__v")
         .populate({
           path: "userId",
           select:
-            "-password -refreshToken -__v -walletDetails -createdAt -updatedAt -referalUser ",
+            "-password -refreshToken -__v -walletDetails -updatedAt -referalUser -createdAt",
         });
 
       if (!request) {
         return res.status(404).json({ msg: "Withdraw request not found" });
       }
+
+      const requestObj = request.toObject();
+
+      requestObj.formattedDate = formatTo12Hour(requestObj.createdAt);
+
+      delete requestObj.createdAt;
+
       return res.status(200).json({
         msg: "Withdraw request retrieved successfully",
-        data: request,
+        data: requestObj,
       });
     }
   } catch (error) {

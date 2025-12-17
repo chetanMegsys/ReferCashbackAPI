@@ -4,6 +4,7 @@ const Orders = require("../models/orderModel");
 const Business = require("../models/businessModel");
 const Users = require("../models/userModel");
 const { paginateArray } = require("../CommanFuntion/Pagination");
+const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
 
 const creditAmount = async (req, res) => {
   try {
@@ -349,16 +350,16 @@ const getUserTransaction = async (req, res) => {
     ]);
 
     // ✅ Date formatter
-    const formatTo12Hour = (date) =>
-      new Date(date).toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-        timeZone: "Asia/Kolkata",
-      });
+    // const formatTo12Hour = (date) =>
+    //   new Date(date).toLocaleString("en-IN", {
+    //     day: "2-digit",
+    //     month: "2-digit",
+    //     year: "numeric",
+    //     hour: "2-digit",
+    //     minute: "2-digit",
+    //     hour12: true,
+    //     timeZone: "Asia/Kolkata",
+    //   });
 
     // 🔹 Pagination applied on flat list
     const paginated = paginateArray({
@@ -420,8 +421,6 @@ const getUserTransaction = async (req, res) => {
     });
   }
 };
-
-
 
 module.exports = {
   creditAmount: creditAmount,
