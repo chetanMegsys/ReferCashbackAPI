@@ -829,6 +829,9 @@ const getOrdersForAdmin = async (req, res) => {
           _id: 1,
           amount: 1, // order.amount
           "businessDetails.businessName": 1,
+          "shopkeeperDetails.firstName":1,
+          "shopkeeperDetails.middleName":1,
+          "shopkeeperDetails.lastName":1,
           "customerDetails.firstName": 1,
           "customerDetails.middleName": 1,
           "customerDetails.lastName": 1,
