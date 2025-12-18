@@ -836,6 +836,11 @@ const getOrdersForAdmin = async (req, res) => {
           isWalletSelected: 1,
         },
       },
+      {
+        $sort: {
+          createdAt: -1,  
+        },
+      },
     ]);
     if (!ordersData || ordersData.length === 0) {
       return res.status(404).send({ msg: "No orders present" });
