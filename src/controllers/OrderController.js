@@ -204,9 +204,12 @@ const acceptOrRejectOrder = async (req, res) => {
         .send({ msg: "Please enter id, status, and userId" });
 
     // 🔹 Find order
-    const order = await orderModel.findById(id);
+    const order = await orderModel.findOne({ _id: id, status: "Pending" });
 
-    if (!order) return res.status(404).send({ msg: "Order not found" });
+    if (!order)
+      return res
+        .status(404)
+        .send({ msg: "Order not found or already accepted" });
 
     // 🔹 Check that this user is the correct shopkeeper
     if (order.shopkeeperId.toString() !== userId.toString()) {
@@ -727,6 +730,13 @@ const calculateCashback = async (req, res) => {
       shopkeeperId,
       orderAmount,
     });
+    if (result) {
+      if (typeof result === "string") {
+        return res.status(404).json({ message: result });
+      }
+
+      return res.status(404).json(result);
+    }
     return res.status(200).json(result);
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
@@ -871,6 +881,7 @@ const getOrdersForAdmin = async (req, res) => {
           "customerDetails.lastName": 1,
           createdAt: 1,
           isWalletSelected: 1,
+          orderId: 1,
         },
       },
       {
@@ -889,7 +900,7 @@ const getOrdersForAdmin = async (req, res) => {
       limit: pageLimit,
       isPagination,
       search: searchText,
-      searchKeys: ["amount", "orderId", "isWalletSelected"],
+      searchKeys: ["amount", "status", "isWalletSelected", "orderId"],
     });
 
     const paginatedWithFormattedDate = {

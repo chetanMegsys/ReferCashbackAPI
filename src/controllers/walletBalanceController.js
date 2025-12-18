@@ -282,7 +282,6 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
     let actionText = "";
     if (action === "approve") {
-      console.log(user);
       if (user.walletDetails.balance < withdrawRequest.amount) {
         return res.status(500).json({ msg: "Insufficient wallet balance" });
       }

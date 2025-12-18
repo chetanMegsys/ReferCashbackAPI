@@ -27,7 +27,6 @@ const registerUser = async (req, res) => {
       aadhaarCardNumber,
       rationCardNumber,
     } = req.body;
-    console.log(req.body);
 
     // 1️⃣ Basic validation
     if (!mobile || !password) {
@@ -136,7 +135,6 @@ const registerUser = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    console.log("dkccdcwc bnch ");
 
     const { mobile, password } = req.body;
     if (!mobile || !password) {
@@ -243,7 +241,6 @@ const verifyToken = async (req, res, next) => {
     // Continue
     next();
   } catch (error) {
-    console.log("TOKEN ERROR:", error);
     return res.status(401).json({ msg: "Invalid or expired token" });
   }
 };
