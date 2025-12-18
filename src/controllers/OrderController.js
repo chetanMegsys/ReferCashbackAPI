@@ -294,19 +294,31 @@ const acceptOrRejectOrder = async (req, res) => {
           transactionType: "credit",
           orderId: order._id,
           amount: cashbackReceivers.referrer.cashback,
-          category: "cashback",
+          category: "reward",
           narration: `${userName} reward points`,
         });
       }
 
       // 🔹 Multi-level cashback: LEVELS, IROT-1, IROT-2
       const multiLevelGroups = [
-        { group: cashbackReceivers.levels, type: "loyalty points" },
-        { group: cashbackReceivers.irot1, type: "experience points-1" },
-        { group: cashbackReceivers.irot2, type: "experience points 2" },
+        {
+          group: cashbackReceivers.levels,
+          type: "loyalty points",
+          category: "loyaltyRewards",
+        },
+        {
+          group: cashbackReceivers.irot1,
+          type: "experience points-1",
+          category: "experiencePoint1",
+        },
+        {
+          group: cashbackReceivers.irot2,
+          type: "experience points 2",
+          category: "experiencePoint2",
+        },
       ];
 
-      for (const { group, type } of multiLevelGroups) {
+      for (const { group, type, category } of multiLevelGroups) {
         if (Array.isArray(group)) {
           for (const entry of group) {
             if (!entry) continue;
@@ -321,7 +333,7 @@ const acceptOrRejectOrder = async (req, res) => {
               transactionType: "credit",
               orderId: order._id,
               amount: entry.cashback,
-              category: "cashback",
+              category: category,
               narration: `${userName} ${type} `,
             });
           }
@@ -341,7 +353,7 @@ const acceptOrRejectOrder = async (req, res) => {
           transactionType: "credit",
           orderId: order._id,
           amount: cashbackReceivers.ror.receiver.cashback,
-          category: "cashback",
+          category: "RORP",
           narration: `${userName} RORP cashback`,
         });
       }
@@ -359,7 +371,7 @@ const acceptOrRejectOrder = async (req, res) => {
           transactionType: "credit",
           orderId: order._id,
           amount: cashbackReceivers.shopkeeper.cashback,
-          category: "cashback",
+          category: "tieUp",
           narration: `${userName} Tie up income`,
         });
       }
@@ -381,8 +393,30 @@ const acceptOrRejectOrder = async (req, res) => {
             transactionType: "credit",
             orderId: order._id,
             amount: admin.cashback,
-            category: "cashback",
+            category: "companyProfit",
             narration: `${userName} SuperAdmin cashback`,
+          });
+        }
+      }
+      // 🔹 Admin cashback
+      if (
+        Array.isArray(cashbackReceivers.admin) &&
+        cashbackReceivers.admin.length > 0
+      ) {
+        for (const admin of cashbackReceivers.admin) {
+          await updateUserWallet(
+            admin.userId,
+            admin.cashback,
+            "referral",
+            true
+          );
+          allTransactions.push({
+            userId: admin.userId,
+            transactionType: "credit",
+            orderId: order._id,
+            amount: admin.cashback,
+            category: "adminCharge",
+            narration: `${userName} admin charges`,
           });
         }
       }
@@ -829,9 +863,9 @@ const getOrdersForAdmin = async (req, res) => {
           _id: 1,
           amount: 1, // order.amount
           "businessDetails.businessName": 1,
-          "shopkeeperDetails.firstName":1,
-          "shopkeeperDetails.middleName":1,
-          "shopkeeperDetails.lastName":1,
+          "shopkeeperDetails.firstName": 1,
+          "shopkeeperDetails.middleName": 1,
+          "shopkeeperDetails.lastName": 1,
           "customerDetails.firstName": 1,
           "customerDetails.middleName": 1,
           "customerDetails.lastName": 1,
@@ -841,7 +875,7 @@ const getOrdersForAdmin = async (req, res) => {
       },
       {
         $sort: {
-          createdAt: -1,  
+          createdAt: -1,
         },
       },
     ]);
