@@ -177,11 +177,21 @@ const updateUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, status } = req.body;
+    let finalStatusValue = "";
+    let statusValue = "";
+
+    if (status == "active") {
+      statusValue = "inactive";
+      finalStatusValue = "activated";
+    } else {
+      statusValue = "active";
+      finalStatusValue = "deactivated";
+    }
 
     const user = await userModel.findOneAndUpdate(
-      { _id: userId, status: "active" },
-      { $set: { status: "inactive" } },
+      { _id: userId, status: statusValue },
+      { $set: { status: status } },
       { new: true, runValidators: true }
     );
 
@@ -190,7 +200,7 @@ const deleteUser = async (req, res) => {
     }
 
     return res.status(200).send({
-      msg: "User deleted successfully",
+      msg: `User ${finalStatusValue} successfully`,
     });
   } catch (error) {
     return res.status(500).send({ msg: error.message });
