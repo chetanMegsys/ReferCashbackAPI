@@ -29,10 +29,11 @@ const businessSchema = new mongoose.Schema(
       max: 100, // discount should not exceed 100%
       default: 0,
     },
-    // imageUrl: {
-    //   type: String,
-    //   // required: true,
-    // },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
     location: {
       type: {
         type: String,

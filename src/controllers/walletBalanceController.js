@@ -169,17 +169,26 @@ const getWithdrawRequests = async (req, res) => {
         return res.status(404).json({ msg: "No withdraw requests found" });
       }
 
-      const allRequestsWithFormattedDate = allRequests.map((item) => {
-        const formatted = {
-          ...item,
-          formattedDate: formatTo12Hour(item.createdAt),
-        };
-        delete formatted.createdAt;
-        return formatted;
-      });
+      // const allRequestsWithFormattedDate = allRequests.map((item) => {
+      //   const formatted = {
+      //     ...item,
+      //     formattedDate: formatTo12Hour(item.createdAt),
+      //   };
+      //   delete formatted.createdAt;
+      //   return formatted;
+      // });
+
+      // const paginated = paginateArray({
+      //   data: allRequestsWithFormattedDate,
+      //   page: pageNumber,
+      //   limit: pageLimit,
+      //   isPagination,
+      //   search: searchText,
+      //   searchKeys: ["amount", "status"],
+      // });
 
       const paginated = paginateArray({
-        data: allRequestsWithFormattedDate,
+        data: allRequests,
         page: pageNumber,
         limit: pageLimit,
         isPagination,
@@ -187,9 +196,21 @@ const getWithdrawRequests = async (req, res) => {
         searchKeys: ["amount", "status"],
       });
 
+      const paginatedWithFormattedDate = {
+        ...paginated,
+        data: paginated.data.map((item) => {
+          const formatted = {
+            ...item,
+            formattedDate: formatTo12Hour(item.createdAt),
+          };
+          delete formatted.createdAt;
+          return formatted;
+        }),
+      };
+
       return res.status(200).json({
         msg: "All Withdraw requests retrieved successfully",
-        data: paginated,
+        data: paginatedWithFormattedDate,
       });
     } else {
       if (!mongoose.Types.ObjectId.isValid(withdrawId)) {

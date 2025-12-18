@@ -292,7 +292,6 @@ const getUserTransaction = async (req, res) => {
         },
       },
       { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
-
       {
         $addFields: {
           actualDate: {
@@ -322,6 +321,7 @@ const getUserTransaction = async (req, res) => {
           amount: 1,
           narration: 1,
           actualDate: 1,
+          date: 1,
           month: 1,
           transactionId: 1,
 
@@ -342,9 +342,6 @@ const getUserTransaction = async (req, res) => {
           "customer.lastName": 1,
           "customer.mobile": 1,
           "customer.imageUrl": 1,
-
-          // "shopkeeper.password": 0,
-          // "customer.password": 0,
         },
       },
     ]);
@@ -396,7 +393,7 @@ const getUserTransaction = async (req, res) => {
 
         acc[t.month].push({
           ...t,
-          formattedDate: formatTo12Hour(t.actualDate),
+          formattedDate: formatTo12Hour(t.date),
         });
 
         return acc;
@@ -404,7 +401,7 @@ const getUserTransaction = async (req, res) => {
     } else {
       finalData = paginated.data.map((t) => ({
         ...t,
-        formattedDate: formatTo12Hour(t.actualDate),
+        formattedDate: formatTo12Hour(t.date),
       }));
     }
 

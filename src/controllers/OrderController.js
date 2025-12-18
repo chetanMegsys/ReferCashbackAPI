@@ -4,6 +4,13 @@ const userModel = require("../models/userModel");
 const businessModel = require("../models/businessModel");
 const transactionModel = require("../models/transactionModel");
 const calculateCashbackHelper = require("../CommanFuntion/calculateCashbackHelper");
+const {
+  isUserExists,
+  isBusinessExists,
+  businessDetails,
+} = require("../CommanFuntion/commonQueries/commonQuerries");
+const { paginateArray } = require("../CommanFuntion/Pagination");
+const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
 
 const getWalletDetails = async (userId) => {
   const user = await userModel
@@ -25,23 +32,19 @@ const getWalletDetails = async (userId) => {
 };
 
 const getOrders = async (req, res) => {
-  const { shopkeeperId, orderId, status } = req.body; // changed userId to shopkeeperId
+  const { shopkeeperId, orderId, status } = req.body;
 
   try {
     let query = {};
 
-    // Both shopkeeperId and orderId provided → specific order
     if (shopkeeperId && orderId) {
       query.shopkeeperId = shopkeeperId;
       query.orderId = orderId;
-    }
-    // Only shopkeeperId provided → fetch orders (default status = "Pending")
-    else if (shopkeeperId) {
+    } else if (shopkeeperId) {
       query.shopkeeperId = shopkeeperId;
-      query.status = status || "Pending"; // default to Pending
+      query.status = status || "Pending";
     }
 
-    // If status is provided without shopkeeperId → fetch all orders with that status
     if (status && !shopkeeperId) {
       query.status = status;
     }
@@ -70,13 +73,44 @@ const createOrder = async (req, res) => {
     const { userId, shopkeeperId, businessId, amount, isWalletSelected } =
       req.body;
     const shopkeeperWallateDetails = await getWalletDetails(shopkeeperId);
-    console.log(shopkeeperId, userId);
+
+    const isBusinessExist = await isBusinessExists(businessId);
+
+    if (!isBusinessExist) {
+      return res.status(400).send({
+        msg: "This business is not available",
+      });
+    }
+    const isCustomerExists = await isUserExists(userId, "customer");
+
+    if (!isCustomerExists) {
+      return res.status(400).send({
+        msg: "This customer is not available",
+      });
+    }
+
+    const isShopkeeperExists = await isUserExists(shopkeeperId, "shopkeeper");
+
+    if (!isShopkeeperExists) {
+      return res.status(400).send({
+        msg: "This shopkeeper is not available",
+      });
+    }
 
     if (shopkeeperId === userId) {
       return res
         .status(400)
         .send({ msg: "You cannot create an order for your own shop." });
     }
+
+    const businessDetail = await businessDetails(businessId);
+
+    if (businessDetail.shopkeeperId != shopkeeperId) {
+      return res.status(400).send({
+        msg: "This business not belongs to the shopkeeper you have selected",
+      });
+    }
+
     if (isWalletSelected) {
       const walletDetails = await getWalletDetails(userId);
 
@@ -98,14 +132,13 @@ const createOrder = async (req, res) => {
         msg: "This shopkeeper is not eligible for cashback.",
       });
     }
+
     const newOrder = new orderModel({
       userId,
       shopkeeperId,
       businessId,
       amount,
-
       isWalletSelected,
-      status: "Pending",
       cashbackSummary,
     });
 
@@ -739,6 +772,105 @@ const graph = async (req, res) => {
   }
 };
 
+const getOrdersForAdmin = async (req, res) => {
+  const { orderId, pageNumber, pageLimit, isPagination, searchText } = req.body;
+
+  let matchStage = { status: "Accepted" };
+
+  if (orderId) {
+    matchStage._id = orderId;
+  }
+
+  try {
+    const ordersData = await orderModel.aggregate([
+      {
+        $match: {
+          ...matchStage,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "customerDetails",
+        },
+      },
+      {
+        $unwind: { path: "$customerDetails", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "shopkeeperId",
+          foreignField: "_id",
+          as: "shopkeeperDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$shopkeeperDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "businesses",
+          localField: "businessId",
+          foreignField: "_id",
+          as: "businessDetails",
+        },
+      },
+      {
+        $unwind: { path: "$businessDetails", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $project: {
+          _id: 1,
+          amount: 1, // order.amount
+          "businessDetails.businessName": 1,
+          "customerDetails.firstName": 1,
+          "customerDetails.middleName": 1,
+          "customerDetails.lastName": 1,
+          createdAt: 1,
+          isWalletSelected: 1,
+        },
+      },
+    ]);
+    if (!ordersData || ordersData.length === 0) {
+      return res.status(404).send({ msg: "No orders present" });
+    }
+
+    const paginated = paginateArray({
+      data: ordersData,
+      page: pageNumber,
+      limit: pageLimit,
+      isPagination,
+      search: searchText,
+      searchKeys: ["amount", "orderId", "isWalletSelected"],
+    });
+
+    const paginatedWithFormattedDate = {
+      ...paginated,
+      data: paginated.data.map((item) => {
+        const formatted = {
+          ...item,
+          formattedDate: formatTo12Hour(item.createdAt),
+        };
+        delete formatted.createdAt;
+        return formatted;
+      }),
+    };
+
+    return res.status(200).send({
+      msg: "Orders fetched successfully",
+      data: paginatedWithFormattedDate,
+    });
+  } catch (error) {
+    return res.status(500).send({ msg: error.message });
+  }
+};
+
 module.exports = {
   getOrders: getOrders,
   createOrder: createOrder,
@@ -748,4 +880,5 @@ module.exports = {
   getOrdersByMonth: getOrdersByMonth,
   calculateCashback: calculateCashback,
   graph,
+  getOrdersForAdmin,
 };

@@ -11,4 +11,5 @@ Router.post("/cancelOrder", orderController.cancelOrder);
 Router.post("/getOrdersByMonth", orderController.getOrdersByMonth);
 Router.post("/calculateCashback", orderController.calculateCashback);
 Router.post("/graph", orderController.graph);
+Router.post("/getOrdersForAdmin", orderController.getOrdersForAdmin);
 module.exports = Router;
