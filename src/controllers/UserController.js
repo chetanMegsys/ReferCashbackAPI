@@ -183,10 +183,10 @@ const deleteUser = async (req, res) => {
 
     if (status == "active") {
       statusValue = "inactive";
-      finalStatusValue = "activated";
+      finalStatusValue = "unblocked";
     } else {
       statusValue = "active";
-      finalStatusValue = "deactivated";
+      finalStatusValue = "blocked";
     }
 
     const user = await userModel.findOneAndUpdate(
