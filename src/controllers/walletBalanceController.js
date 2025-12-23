@@ -264,7 +264,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
       _id: withdrawId,
       status: "pending",
     });
-
+    const minimumBalance = process.env.MINBALANCE;
     if (!withdrawRequest) {
       return res
         .status(404)
@@ -282,7 +282,10 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
     let actionText = "";
     if (action === "approve") {
-      if (user.walletDetails.balance < withdrawRequest.amount) {
+      if (
+        user.walletDetails.balance - withdrawRequest.amount <
+        minimumBalance
+      ) {
         return res.status(500).json({ msg: "Insufficient wallet balance" });
       }
       withdrawRequest.status = "approved";

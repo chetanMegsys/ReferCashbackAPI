@@ -39,6 +39,7 @@ const isUserExists = async (userId, role) => {
 };
 const isUserIdExists = async (userId) => {
   let result = false;
+
   const userDetails = await userModel
     .findOne({
       _id: userId,
@@ -54,5 +55,6 @@ const isUserIdExists = async (userId) => {
 module.exports = {
   isBusinessExists,
   isUserExists,
-  businessDetails,isUserIdExists
+  businessDetails,
+  isUserIdExists,
 };
