@@ -1,12 +1,13 @@
 const { compare } = require("bcrypt");
 
-const   getCompanyDetails = async (req, res) => {
+const getCompanyDetails = async (req, res) => {
   try {
     const { id, role } = req.body;
 
-   companyData={
-    googleApiKey:'AIzaSyByDwqSfLVgtL9OIfD-VJHB459VA8Q-t5g'
-   }
+    companyData = {
+      googleApiKey: process.env.GOOGLEAPIKEY,
+      minimumBalance: process.env.MINBALANCE,
+    };
     return res
       .status(200)
       .send({ msg: "User fetched successfully", data: companyData });

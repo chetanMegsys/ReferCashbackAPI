@@ -352,6 +352,8 @@
 // };
 
 // module.exports = calculateCashbackHelper;
+
+
 const userModel = require("../models/userModel");
 const businessModel = require("../models/businessModel");
 const { isUserIdExists } = require("./commonQueries/commonQuerries");
