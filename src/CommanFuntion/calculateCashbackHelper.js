@@ -80,7 +80,7 @@ const calculateCashbackHelper = async ({
     return {
       cashbackReceivers: {
         customer: {
-          userId: adminUsers._id,
+          userId: buyer._id,
           name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
           cashback: customerCashback,
         },
