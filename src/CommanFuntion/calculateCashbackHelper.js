@@ -27,7 +27,7 @@
 //   if (!business) return "Shopkeeper not found";
 
 //   const cashbackPercent = business.discountPercentage || 0;
-//   const totalCashback = Math.round(
+//   const totalCashback = parseFloat(
 //     ((orderAmount * cashbackPercent) / 100)
 //   );
 
@@ -48,15 +48,15 @@
 //   const buyer = await userModel.findById(userId);
 
 //   // 🔢 ENV percentages
-//   const customerPercent = Math.round(process.env.CUSTOMER_PERCENTAGE);
-//   const directReferralPercent = Math.round(process.env.REFERRER_PERCENTAGE);
-//   const rorPercent = Math.round(process.env.ROR_PERCENTAGE);
-//   const levelPercent = Math.round(process.env.LEVEL_PERCENTAGE);
-//   const irot1Percent = Math.round(process.env.IROT1_PERCENTAGE);
-//   const irot2Percent = Math.round(process.env.IROT2_PERCENTAGE);
-//   const shopkeeperPercent = Math.round(process.env.TIUP_PERCENTAGE);
-//   const superAdminPercent = Math.round(process.env.SUPERADMIN_PERCENTAGE);
-//   const adminPercent = Math.round(process.env.ADMIN);
+//   const customerPercent = parseFloat(process.env.CUSTOMER_PERCENTAGE);
+//   const directReferralPercent = parseFloat(process.env.REFERRER_PERCENTAGE);
+//   const rorPercent = parseFloat(process.env.ROR_PERCENTAGE);
+//   const levelPercent = parseFloat(process.env.LEVEL_PERCENTAGE);
+//   const irot1Percent = parseFloat(process.env.IROT1_PERCENTAGE);
+//   const irot2Percent = parseFloat(process.env.IROT2_PERCENTAGE);
+//   const shopkeeperPercent = parseFloat(process.env.TIUP_PERCENTAGE);
+//   const superAdminPercent = parseFloat(process.env.SUPERADMIN_PERCENTAGE);
+//   const adminPercent = parseFloat(process.env.ADMIN);
 
 //   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
 
@@ -70,10 +70,10 @@
 
 //   // 🚫 If buyer docs missing → all to admin (UNCHANGED LOGIC)
 //   if (!hasValidDocs) {
-//     const customerCashback = Math.round(
+//     const customerCashback = parseFloat(
 //       ((totalCashback * customerPercent) / 100)
 //     );
-//     const tiupCashback = Math.round(
+//     const tiupCashback = parseFloat(
 //       ((totalCashback * shopkeeperPercent) / 100)
 //     );
 
@@ -232,11 +232,11 @@
 //   // 💸 Distribution helper
 //   // ===========================
 //   const calcDistribution = (users, percent, maxLevels) => {
-//     const total = Math.round(((totalCashback * percent) / 100));
-//     const perUser = users.length ? Math.round((total / maxLevels)) : 0;
+//     const total = parseFloat(((totalCashback * percent) / 100));
+//     const perUser = users.length ? parseFloat((total / maxLevels)) : 0;
 
 //     const distributed = perUser * users.length;
-//     const remaining = Math.round((total - distributed));
+//     const remaining = parseFloat((total - distributed));
 
 //     const result = users.map((u) => ({ ...u, cashback: perUser }));
 
@@ -267,12 +267,12 @@
 //       userId: rorUser._id,
 //       name: `${rorUser.firstName || ""} ${rorUser.lastName || ""}`.trim(),
 //       mobile: rorUser.mobile,
-//       cashback: Math.round(((totalCashback * rorPercent) / 100)),
+//       cashback: parseFloat(((totalCashback * rorPercent) / 100)),
 //     };
 //   } else {
 //     rorReceiver = {
 //       ...adminUsers,
-//       cashback: Math.round(((totalCashback * rorPercent) / 100)),
+//       cashback: parseFloat(((totalCashback * rorPercent) / 100)),
 //     };
 //   }
 
@@ -284,7 +284,7 @@
 //       customer: {
 //         userId: buyer._id,
 //         name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
-//         cashback: Math.round(((totalCashback * customerPercent) / 100)),
+//         cashback: parseFloat(((totalCashback * customerPercent) / 100)),
 //       },
 //       referrer: directReferrer
 //         ? {
@@ -292,7 +292,7 @@
 //             name: `${directReferrer.firstName || ""} ${
 //               directReferrer.lastName || ""
 //             }`.trim(),
-//             cashback: Math.round(
+//             cashback: parseFloat(
 //               ((totalCashback * directReferralPercent) / 100)
 //             ),
 //           }
@@ -302,14 +302,14 @@
 //         name: `${refreshedShopkeeper.firstName || ""} ${
 //           refreshedShopkeeper.lastName || ""
 //         }`.trim(),
-//         cashback: Math.round(
+//         cashback: parseFloat(
 //           ((totalCashback * shopkeeperPercent) / 100)
 //         ),
 //       },
 //       superadmin: [
 //         {
 //           ...adminUsers,
-//           cashback: Math.round(
+//           cashback: parseFloat(
 //             ((totalCashback * superAdminPercent) / 100)
 //           ),
 //         },
@@ -317,14 +317,14 @@
 //       admin: [
 //         {
 //           ...adminUsers,
-//           cashback: Math.round(((totalCashback * adminPercent) / 100)),
+//           cashback: parseFloat(((totalCashback * adminPercent) / 100)),
 //         },
 //       ],
 //       levels: levelDistribution,
 //       irot1: irot1Distribution,
 //       irot2: irot2Distribution,
 //       ror: {
-//         totalROR: Math.round(((orderAmount * rorPercent) / 100)),
+//         totalROR: parseFloat(((orderAmount * rorPercent) / 100)),
 //         percent: rorPercent,
 //         receiver: rorReceiver,
 //       },
@@ -332,17 +332,17 @@
 //     },
 //     cashbackSummary: {
 //       totalCashback,
-//       customer: Math.round(((totalCashback * customerPercent) / 100)),
-//       referrer: Math.round(
+//       customer: parseFloat(((totalCashback * customerPercent) / 100)),
+//       referrer: parseFloat(
 //         ((totalCashback * directReferralPercent) / 100)
 //       ),
-//       shopkeeper: Math.round(
+//       shopkeeper: parseFloat(
 //         ((totalCashback * shopkeeperPercent) / 100)
 //       ),
-//       superadmin: Math.round(
+//       superadmin: parseFloat(
 //         ((totalCashback * superAdminPercent) / 100).toFixed(2)
 //       ),
-//       admin: Math.round(((totalCashback * adminPercent) / 100).toFixed(2)),
+//       admin: parseFloat(((totalCashback * adminPercent) / 100).toFixed(2)),
 //       levels: levelDistribution.reduce((a, c) => a + c.cashback, 0),
 //       irot1: irot1Distribution.reduce((a, c) => a + c.cashback, 0),
 //       irot2: irot2Distribution.reduce((a, c) => a + c.cashback, 0),
@@ -382,7 +382,7 @@ const calculateCashbackHelper = async ({
   if (!business) return "Shopkeeper not found";
 
   const cashbackPercent = business.discountPercentage || 0;
-  const totalCashback = Math.round(
+  const totalCashback = parseFloat(
     ((orderAmount * cashbackPercent) / 100).toFixed(2)
   );
 
@@ -428,10 +428,10 @@ const calculateCashbackHelper = async ({
 
   // 🚫 If buyer docs missing → all to admin (UNCHANGED LOGIC)
   if (!hasValidDocs) {
-    const customerCashback = Math.round(
+    const customerCashback = parseFloat(
       (totalCashback * customerPercent) / 100
     );
-    const tiupCashback = Math.round((totalCashback * shopkeeperPercent) / 100);
+    const tiupCashback = parseFloat((totalCashback * shopkeeperPercent) / 100);
 
     return {
       cashbackReceivers: {
@@ -674,11 +674,11 @@ const calculateCashbackHelper = async ({
   // 💸 Distribution helper
   // ===========================
   const calcDistribution = (users, percent, maxLevels) => {
-    const total = Math.round((totalCashback * percent) / 100);
-    const perUser = users.length ? Math.round(total / maxLevels) : 0;
+    const total = parseFloat((totalCashback * percent) / 100);
+    const perUser = users.length ? parseFloat(total / maxLevels) : 0;
 
     const distributed = perUser * users.length;
-    const remaining = Math.round(total - distributed);
+    const remaining = parseFloat(total - distributed);
 
     const result = users.map((u) => ({ ...u, cashback: perUser }));
 
@@ -718,7 +718,7 @@ const calculateCashbackHelper = async ({
         userId: rorUser._id,
         name: `${rorUser.firstName || ""} ${rorUser.lastName || ""} `.trim(),
         mobile: rorUser.mobile,
-        cashback: Math.round((totalCashback * rorPercent) / 100),
+        cashback: parseFloat((totalCashback * rorPercent) / 100),
       };
     } else {
       // ❌ KYC missing → fallback to Admin
@@ -728,7 +728,7 @@ const calculateCashbackHelper = async ({
           adminUsers.lastName || ""
         }`.trim(),
         mobile: adminUsers.mobile || null,
-        cashback: Math.round((totalCashback * rorPercent) / 100),
+        cashback: parseFloat((totalCashback * rorPercent) / 100),
       };
     }
   } else {
@@ -737,7 +737,7 @@ const calculateCashbackHelper = async ({
       userId: adminUsers.userId,
       name: `${adminUsers.firstName || ""} ${adminUsers.lastName || ""}`.trim(),
       mobile: adminUsers.mobile || null,
-      cashback: Math.round((totalCashback * rorPercent) / 100),
+      cashback: parseFloat((totalCashback * rorPercent) / 100),
     };
   }
 
@@ -749,7 +749,7 @@ const calculateCashbackHelper = async ({
       customer: {
         userId: buyer._id,
         name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
-        cashback: Math.round((totalCashback * customerPercent) / 100),
+        cashback: parseFloat((totalCashback * customerPercent) / 100),
       },
       referrer: directReferrer
         ? {
@@ -757,7 +757,7 @@ const calculateCashbackHelper = async ({
             name: `${directReferrer.firstName || ""} ${
               directReferrer.lastName || ""
             }`.trim(),
-            cashback: Math.round((totalCashback * directReferralPercent) / 100),
+            cashback: parseFloat((totalCashback * directReferralPercent) / 100),
           }
         : null,
       shopkeeper: {
@@ -765,25 +765,25 @@ const calculateCashbackHelper = async ({
         name: `${refreshedShopkeeper.firstName || ""} ${
           refreshedShopkeeper.lastName || ""
         }`.trim(),
-        cashback: Math.round((totalCashback * shopkeeperPercent) / 100),
+        cashback: parseFloat((totalCashback * shopkeeperPercent) / 100),
       },
       superadmin: [
         {
           ...adminUsers,
-          cashback: Math.round((totalCashback * superAdminPercent) / 100),
+          cashback: parseFloat((totalCashback * superAdminPercent) / 100),
         },
       ],
       admin: [
         {
           ...adminUsers,
-          cashback: Math.round((totalCashback * adminPercent) / 100),
+          cashback: parseFloat((totalCashback * adminPercent) / 100),
         },
       ],
       levels: levelDistribution,
       irot1: irot1Distribution,
       irot2: irot2Distribution,
       ror: {
-        totalROR: Math.round((orderAmount * rorPercent) / 100),
+        totalROR: parseFloat((orderAmount * rorPercent) / 100),
         percent: rorPercent,
         receiver: rorReceiver,
       },
@@ -791,11 +791,11 @@ const calculateCashbackHelper = async ({
     },
     cashbackSummary: {
       totalCashback,
-      customer: Math.round((totalCashback * customerPercent) / 100),
-      referrer: Math.round((totalCashback * directReferralPercent) / 100),
-      shopkeeper: Math.round((totalCashback * shopkeeperPercent) / 100),
-      superadmin: Math.round((totalCashback * superAdminPercent) / 100),
-      admin: Math.round((totalCashback * adminPercent) / 100),
+      customer: parseFloat((totalCashback * customerPercent) / 100),
+      referrer: parseFloat((totalCashback * directReferralPercent) / 100),
+      shopkeeper: parseFloat((totalCashback * shopkeeperPercent) / 100),
+      superadmin: parseFloat((totalCashback * superAdminPercent) / 100),
+      admin: parseFloat((totalCashback * adminPercent) / 100),
       levels: levelDistribution.reduce((a, c) => a + c.cashback, 0),
       irot1: irot1Distribution.reduce((a, c) => a + c.cashback, 0),
       irot2: irot2Distribution.reduce((a, c) => a + c.cashback, 0),
