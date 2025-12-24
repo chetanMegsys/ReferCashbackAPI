@@ -353,7 +353,6 @@
 
 // module.exports = calculateCashbackHelper;
 
-
 const userModel = require("../models/userModel");
 const businessModel = require("../models/businessModel");
 const { isUserIdExists } = require("./commonQueries/commonQuerries");
@@ -536,15 +535,15 @@ const calculateCashbackHelper = async ({
           }`.trim(),
           mobile: adminUsers.mobile || null,
         });
-        break;
+  
+      } else {
+        // ✅ Valid upstream user
+        result.push({
+          userId: parent._id,
+          name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
+          mobile: parent.mobile,
+        });
       }
-
-      // ✅ Valid upstream user
-      result.push({
-        userId: parent._id,
-        name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
-        mobile: parent.mobile,
-      });
 
       current = parent;
       level++;
@@ -653,15 +652,15 @@ const calculateCashbackHelper = async ({
           }`.trim(),
           mobile: adminUsers.mobile || null,
         });
-        break;
+     
+      } else {
+        // ✅ Valid referral
+        chain.push({
+          userId: ref._id,
+          name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
+          mobile: ref.mobile,
+        });
       }
-
-      // ✅ Valid referral
-      chain.push({
-        userId: ref._id,
-        name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
-        mobile: ref.mobile,
-      });
 
       currentId = user.referalUser;
       count++;
