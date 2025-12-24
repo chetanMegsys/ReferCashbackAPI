@@ -403,15 +403,15 @@ const calculateCashbackHelper = async ({
   const buyer = await userModel.findById(userId);
 
   // 🔢 ENV percentages
-  const customerPercent = Math.round(process.env.CUSTOMER_PERCENTAGE);
-  const directReferralPercent = Math.round(process.env.REFERRER_PERCENTAGE);
-  const rorPercent = Math.round(process.env.ROR_PERCENTAGE);
-  const levelPercent = Math.round(process.env.LEVEL_PERCENTAGE);
-  const irot1Percent = Math.round(process.env.IROT1_PERCENTAGE);
-  const irot2Percent = Math.round(process.env.IROT2_PERCENTAGE);
-  const shopkeeperPercent = Math.round(process.env.TIUP_PERCENTAGE);
-  const superAdminPercent = Math.round(process.env.SUPERADMIN_PERCENTAGE);
-  const adminPercent = Math.round(process.env.ADMIN);
+  const customerPercent = parseInt(process.env.CUSTOMER_PERCENTAGE);
+  const directReferralPercent = parseInt(process.env.REFERRER_PERCENTAGE);
+  const rorPercent = parseInt(process.env.ROR_PERCENTAGE);
+  const levelPercent = parseInt(process.env.LEVEL_PERCENTAGE);
+  const irot1Percent = parseInt(process.env.IROT1_PERCENTAGE);
+  const irot2Percent = parseInt(process.env.IROT2_PERCENTAGE);
+  const shopkeeperPercent = parseInt(process.env.TIUP_PERCENTAGE);
+  const superAdminPercent = parseInt(process.env.SUPERADMIN_PERCENTAGE);
+  const adminPercent = parseInt(process.env.ADMIN);
 
   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
 
