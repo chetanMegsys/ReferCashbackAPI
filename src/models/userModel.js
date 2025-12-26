@@ -89,11 +89,20 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    currentPincode: {
+      type: String,
+      required: true,
+    },
     permanentAddress: {
       type: String,
       required: true,
       trim: true,
     },
+    permanentPincode: {
+      type: String,
+      required: true,
+    },
+
     panCardNumber: {
       type: String,
       required: true,

@@ -244,7 +244,14 @@ const acceptOrRejectOrder = async (req, res) => {
           shopkeeperId: order.shopkeeperId,
           orderAmount: order.amount,
         });
-
+      const shopkeeperWallateDetails = await getWalletDetails(
+        order.shopkeeperId
+      );
+      if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
+        return res.status(400).json({
+          msg: "You are not eligible to accept this order due to insufficient wallet balance.",
+        });
+      }
       const allTransactions = [];
 
       await allTransactions.push({

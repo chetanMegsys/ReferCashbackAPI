@@ -107,14 +107,32 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id, rationCardNumber } = req.body;
+    const { id, rationCardNumber, permanentPincode, currentPincode } = req.body;
+    // ✅ PINCODE REGEX
+    const pincodeRegex = /^[1-9][0-9]{5}$/;
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
     }
+
+    // ✅ Permanent Pincode Validation
+    if (permanentPincode && !pincodeRegex.test(permanentPincode)) {
+      return res.status(400).send({
+        msg: "Invalid permanent address pincode",
+      });
+    }
+
+    // ✅ Current Pincode Validation
+    if (currentPincode && !pincodeRegex.test(currentPincode)) {
+      return res.status(400).send({
+        msg: "Invalid current address pincode",
+      });
+    }
+
     // 3️⃣ Check if ration card already registered
     if (rationCardNumber) {
       const existingRation = await userModel.findOne({ rationCardNumber });
-      if (existingRation) {
+
+      if (existingRation && existingRation._id.toString() !== id) {
         return res
           .status(400)
           .send({ msg: "Ration card number already registered" });
@@ -123,32 +141,6 @@ const updateUser = async (req, res) => {
 
     let updateData = req.body;
     let oldImagePath = null;
-
-    // handle image upload
-    // if (req.files && req.files.image) {
-    //   let imageFile = req.files.image;
-
-    //   // ensure /public/images folder exists
-    //   const imagesDir = path.join("public", "images");
-    //   if (!fs.existsSync(imagesDir)) {
-    //     fs.mkdirSync(imagesDir, { recursive: true });
-    //   }
-
-    //   // unique filename
-    //   let fileName = Date.now() + "_" + imageFile.name;
-    //   let uploadPath = path.join(imagesDir, fileName);
-
-    //   // move uploaded file
-    //   await imageFile.mv(uploadPath);
-
-    //   const currentUser = await userModel.findById(id);
-    //   if (currentUser && currentUser.imageUrl) {
-    //     oldImagePath = path.join("public", currentUser.imageUrl); // stored relative earlier
-    //   }
-
-    //   // save relative path (accessible via express.static)
-    //   updateData.imageUrl = `/images/${fileName}`;
-    // }
 
     const updatedUser = await userModel.findByIdAndUpdate(
       id,

@@ -3,9 +3,12 @@ const otpModel = require("../models/otpModel");
 const { createOrUpdateBusiness } = require("../services/businessService");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const mongoose = require("mongoose");
 const businessModel = require("../models/businessModel");
 
 const registerUser = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const {
       mobile,
@@ -26,8 +29,10 @@ const registerUser = async (req, res) => {
       panCardNumber,
       aadhaarCardNumber,
       rationCardNumber,
+      permanentPincode,
+      currentPincode,
     } = req.body;
-
+    const pincodeRegex = /^[1-9][0-9]{5}$/;
     // 1️⃣ Basic validation
     if (!mobile || !password) {
       return res
@@ -48,6 +53,20 @@ const registerUser = async (req, res) => {
           .status(400)
           .send({ msg: "Ration card number already registered" });
       }
+    }
+
+    // ✅ Permanent Pincode Validation
+    if (permanentPincode && !pincodeRegex.test(permanentPincode)) {
+      return res.status(400).send({
+        msg: "Invalid permanent address pincode",
+      });
+    }
+
+    // ✅ Current Pincode Validation
+    if (currentPincode && !pincodeRegex.test(currentPincode)) {
+      return res.status(400).send({
+        msg: "Invalid current address pincode",
+      });
     }
     // 3️⃣ Check referral exists
     const referralUser = await userModel.findOne({
@@ -101,6 +120,8 @@ const registerUser = async (req, res) => {
       panCardNumber,
       aadhaarCardNumber,
       rationCardNumber,
+      permanentPincode,
+      currentPincode,
       status: "active",
     };
 
@@ -119,23 +140,28 @@ const registerUser = async (req, res) => {
           coordinates: [Number(long), Number(lat)],
         },
       });
-      await newBusiness.save();
+      await newBusiness.save({ session });
     }
-    await newUser.save();
+    await newUser.save({ session });
+    await session.commitTransaction();
+    session.endSession();
     // ✅ Respond
+
     res.status(200).send({
       msg: "User registered successfully",
       data: newUser,
     });
   } catch (error) {
     console.error("Error registering user:", error);
+    await session.abortTransaction();
+    session.endSession();
+
     res.status(500).send({ msg: error.message, data: null });
   }
 };
 
 const login = async (req, res) => {
   try {
-
     const { mobile, password } = req.body;
     if (!mobile || !password) {
       return res
