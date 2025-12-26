@@ -31,6 +31,7 @@ const registerUser = async (req, res) => {
       rationCardNumber,
       permanentPincode,
       currentPincode,
+      businessPincode,
     } = req.body;
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     // 1️⃣ Basic validation
@@ -130,6 +131,11 @@ const registerUser = async (req, res) => {
 
     // 8️⃣ If shopkeeper, create business
     if (role === "shopkeeper" && businessName) {
+      if (businessPincode && !pincodeRegex.test(businessPincode)) {
+        return res.status(400).send({
+          msg: "Invalid business address pincode",
+        });
+      }
       const newBusiness = new businessModel({
         businessName,
         address: BusinessAddress,
@@ -139,6 +145,7 @@ const registerUser = async (req, res) => {
           type: "Point",
           coordinates: [Number(long), Number(lat)],
         },
+        Pincode: businessPincode,
       });
       await newBusiness.save({ session });
     }

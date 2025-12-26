@@ -34,6 +34,10 @@ const businessSchema = new mongoose.Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
+    Pincode: {
+      type: String,
+      required: true,
+    },
     location: {
       type: {
         type: String,
