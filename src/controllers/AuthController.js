@@ -34,6 +34,8 @@ const registerUser = async (req, res) => {
       businessPincode,
     } = req.body;
     const pincodeRegex = /^[1-9][0-9]{5}$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;
+
     // 1️⃣ Basic validation
     if (!mobile || !password) {
       return res
@@ -60,6 +62,11 @@ const registerUser = async (req, res) => {
     if (permanentPincode && !pincodeRegex.test(permanentPincode)) {
       return res.status(400).send({
         msg: "Invalid permanent address pincode",
+      });
+    }
+    if (email && !emailRegex.test(email)) {
+      return res.status(400).send({
+        msg: "Invalid Email Address",
       });
     }
 
@@ -121,8 +128,8 @@ const registerUser = async (req, res) => {
       panCardNumber,
       aadhaarCardNumber,
       rationCardNumber,
-      permanentPincode,
-      currentPincode,
+      permanentPincode: permanentPincode,
+      currentPincode: currentPincode,
       status: "active",
     };
 

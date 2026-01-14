@@ -7,6 +7,7 @@ const getCompanyDetails = async (req, res) => {
     companyData = {
       googleApiKey: process.env.GOOGLEAPIKEY,
       minimumBalance: process.env.MINBALANCE,
+      androidLink: process.env.ANDROID_LINK,
     };
     return res
       .status(200)

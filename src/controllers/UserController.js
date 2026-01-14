@@ -107,11 +107,24 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id, rationCardNumber, permanentPincode, currentPincode } = req.body;
+    const { id, rationCardNumber, permanentPincode, currentPincode, upi } =
+      req.body;
     // ✅ PINCODE REGEX
     const pincodeRegex = /^[1-9][0-9]{5}$/;
+    const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+    const mobileRegex = /^\d{10}$/;
+
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
+    }
+
+    const upiValue = upi?.toLowerCase();
+
+    if (!upiRegex.test(upiValue) && !mobileRegex.test(upiValue)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid UPI ID or 10-digit mobile number",
+      });
     }
 
     // ✅ Permanent Pincode Validation

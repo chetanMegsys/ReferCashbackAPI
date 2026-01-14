@@ -50,6 +50,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    upi: {
+      type: String,
+      trim: true,
+    },
     role: {
       type: String,
       enum: ["customer", "shopkeeper", "admin"],
@@ -108,22 +112,16 @@ const userSchema = new mongoose.Schema(
       required: true,
       uppercase: true,
       trim: true,
-      match: [/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN card format"],
     },
     aadhaarCardNumber: {
       type: String,
       required: false,
       trim: true,
-      match: [/^(\d{4}\s?){3}$/, "Aadhaar number must be 12 digits"],
     },
     rationCardNumber: {
       type: String,
       required: false,
       trim: true,
-      match: [
-        /^\d{12}$/,
-        "Ration card number must be 12 characters (2 letters + 10 digits)",
-      ],
     },
 
     walletDetails: {
