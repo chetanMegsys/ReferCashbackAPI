@@ -34,7 +34,7 @@ const registerUser = async (req, res) => {
       businessPincode,
     } = req.body;
     const pincodeRegex = /^[1-9][0-9]{5}$/;
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     // 1️⃣ Basic validation
     if (!mobile || !password) {
@@ -176,7 +176,7 @@ const registerUser = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const { mobile, password } = req.body;
+    const { mobile, password, deviceToken, deviceID } = req.body;
     if (!mobile || !password) {
       return res
         .status(400)
@@ -194,7 +194,17 @@ const login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).send({ msg: "Incorrect password" });
     }
-
+    if (deviceID && deviceToken) {
+      let deviceIndex = user.deviceDetails.findIndex(
+        (device) => device.deviceID === deviceID
+      );
+      if (deviceIndex !== -1) {
+        user.deviceDetails[deviceIndex].deviceToken = deviceToken;
+      } else {
+        user.deviceDetails.push({ deviceID, deviceToken });
+      }
+      await user.save();
+    }
     //Token generation
     const accessToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
       expiresIn: "1d",

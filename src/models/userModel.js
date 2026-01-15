@@ -123,7 +123,22 @@ const userSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
-
+    deviceDetails: [
+      {
+        deviceID: {
+          type: String,
+          required: false,
+        },
+        deviceToken: {
+          type: String,
+          required: false,
+        },
+        addedOn: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     walletDetails: {
       walletId: {
         type: mongoose.Schema.Types.ObjectId,

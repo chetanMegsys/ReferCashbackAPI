@@ -332,6 +332,7 @@ const getUserTransaction = async (req, res) => {
 
           "business.businessName": 1,
           "business.businessId": 1,
+          "business.address": 1,
 
           "shopkeeper.firstName": 1,
           "shopkeeper.lastName": 1,
