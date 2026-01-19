@@ -262,7 +262,10 @@ const acceptOrRejectOrder = async (req, res) => {
         category: "cashback",
         narration: `Cashback deduction for order ${order?.orderId}`,
       });
+    
+
       const amount = cashbackSummary?.totalCashback;
+   
 
       await userModel.findByIdAndUpdate(
         order?.shopkeeperId,
@@ -367,7 +370,28 @@ const acceptOrRejectOrder = async (req, res) => {
           narration: `${userName} RORP cashback`,
         });
       }
+      if (order?.isWalletSelected) {
+       
 
+        let creditAmount = order.amount || 0;
+        // 1️⃣ Refund to wallet
+        await updateUserWallet(
+          order.shopkeeperId,
+          creditAmount,
+          "customer",
+          true,
+        );
+
+        // 2️⃣ Log refund transaction
+        await allTransactions.push({
+          userId: order.shopkeeperId,
+          transactionType: "credit",
+          orderId: order._id,
+          amount: creditAmount,
+          category: "order",
+          narration: `Order ${order.orderId} amount credited after deduction`,
+        });
+      }
       // 🔹 Shopkeeper cashback (separate entry)
       if (cashbackReceivers.shopkeeper?.cashback > 0) {
         await updateUserWallet(
