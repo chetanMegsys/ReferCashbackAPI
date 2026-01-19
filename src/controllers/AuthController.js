@@ -32,6 +32,7 @@ const registerUser = async (req, res) => {
       permanentPincode,
       currentPincode,
       businessPincode,
+      discountPercentage,
     } = req.body;
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -148,6 +149,7 @@ const registerUser = async (req, res) => {
         address: BusinessAddress,
         categories: categories,
         shopkeeperId: newUser._id,
+        discountPercentage: discountPercentage,
         location: {
           type: "Point",
           coordinates: [Number(long), Number(lat)],
@@ -196,7 +198,7 @@ const login = async (req, res) => {
     }
     if (deviceID && deviceToken) {
       let deviceIndex = user.deviceDetails.findIndex(
-        (device) => device.deviceID === deviceID
+        (device) => device.deviceID === deviceID,
       );
       if (deviceIndex !== -1) {
         user.deviceDetails[deviceIndex].deviceToken = deviceToken;
@@ -215,7 +217,7 @@ const login = async (req, res) => {
       process.env.REFRESH_TOKEN_SECRET,
       {
         expiresIn: "7d",
-      }
+      },
     );
 
     // saving refresh Token in database
@@ -322,7 +324,7 @@ const verifyRefreshToken = async (req, res) => {
     const newRefreshToken = jwt.sign(
       { id: user._id },
       process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
     // Save new refresh token in DB (replace old one)
     user.refreshToken = newRefreshToken;
