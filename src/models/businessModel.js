@@ -27,7 +27,7 @@ const businessSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       max: 100, // discount should not exceed 100%
-      default: 0,
+      default: 1,
     },
     status: {
       type: String,

@@ -16,7 +16,7 @@ const getWalletDetails = async (userId) => {
   const user = await userModel
     .findById(userId)
     .select(
-      "walletDetails.balance walletDetails.cashbackPoints walletDetails.referralPoints"
+      "walletDetails.balance walletDetails.cashbackPoints walletDetails.referralPoints",
     );
   if (!user || !user.walletDetails) {
     return { balance: 0, cashback: 0, referral: 0 };
@@ -161,7 +161,7 @@ const createOrder = async (req, res) => {
       await userModel.findByIdAndUpdate(
         userId,
         { $inc: { "walletDetails.balance": -amount } }, // decrement balance
-        { new: true }
+        { new: true },
       );
     }
 
@@ -178,7 +178,7 @@ const updateUserWallet = async (
   userId,
   amount,
   type = "referral",
-  alsoAddBalance = false
+  alsoAddBalance = false,
 ) => {
   if (!userId || !amount || amount <= 0) return;
 
@@ -245,7 +245,7 @@ const acceptOrRejectOrder = async (req, res) => {
           orderAmount: order.amount,
         });
       const shopkeeperWallateDetails = await getWalletDetails(
-        order.shopkeeperId
+        order.shopkeeperId,
       );
       if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
         return res.status(400).json({
@@ -267,7 +267,7 @@ const acceptOrRejectOrder = async (req, res) => {
       await userModel.findByIdAndUpdate(
         order?.shopkeeperId,
         { $inc: { "walletDetails.balance": -amount } }, // decrement balance
-        { new: true }
+        { new: true },
       );
       // --------------------------
       // Cashback distribution
@@ -279,7 +279,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.customer.userId,
           cashbackReceivers.customer.cashback,
           "customer",
-          true
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers?.customer?.userId,
@@ -297,7 +297,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.referrer.userId,
           cashbackReceivers.referrer.cashback,
           "referral",
-          true
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers.referrer.userId,
@@ -336,7 +336,7 @@ const acceptOrRejectOrder = async (req, res) => {
               entry.userId,
               entry.cashback,
               "referral",
-              true
+              true,
             );
             allTransactions.push({
               userId: entry.userId,
@@ -356,7 +356,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.ror.receiver.userId,
           cashbackReceivers.ror.receiver.cashback,
           "referral",
-          true
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers.ror.receiver.userId,
@@ -374,7 +374,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.shopkeeper.userId,
           cashbackReceivers.shopkeeper.cashback,
           "referral",
-          true
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers.shopkeeper.userId,
@@ -396,7 +396,7 @@ const acceptOrRejectOrder = async (req, res) => {
             admin.userId,
             admin.cashback,
             "referral",
-            true
+            true,
           );
           allTransactions.push({
             userId: admin.userId,
@@ -418,7 +418,7 @@ const acceptOrRejectOrder = async (req, res) => {
             admin.userId,
             admin.cashback,
             "referral",
-            true
+            true,
           );
           allTransactions.push({
             userId: admin.userId,
@@ -533,7 +533,7 @@ const cancelOrder = async (req, res) => {
             "walletDetails.cashbackPoints": amount, // you can change logic if needed
           },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!updatedUser) {
@@ -802,7 +802,7 @@ const graph = async (req, res) => {
       xAxisdata.push(`${monthNames[m]}-${y}`);
 
       const found = result.find(
-        (item) => item._id.month === m + 1 && item._id.year === y
+        (item) => item._id.month === m + 1 && item._id.year === y,
       );
 
       seriesLineData.push(found ? found.totalAmount : 0);
