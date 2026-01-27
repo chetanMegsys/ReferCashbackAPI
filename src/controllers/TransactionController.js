@@ -23,11 +23,11 @@ const creditAmount = async (req, res) => {
       transactionType: "credit", // always credit for adding wallet balance
       amount,
       category: category,
-      narration: narration || "Initial wallet balance for testing",
+      narration: narration || "Initial reward points for testing",
     });
 
     res.status(200).send({
-      msg: "Wallet balance added successfully",
+      msg: "reward points added successfully",
       data: transaction,
     });
   } catch (error) {

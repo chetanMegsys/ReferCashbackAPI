@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "inactive"],
+      enum: ["active", "inactive", "pending"],
       default: "active",
     },
     imageUrl: {
@@ -161,7 +161,7 @@ const userSchema = new mongoose.Schema(
     },
   },
 
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const users = mongoose.model("users", userSchema);

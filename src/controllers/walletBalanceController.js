@@ -98,7 +98,7 @@ const addWalletBalance = async (req, res) => {
     }
 
     return res.status(200).json({
-      msg: "Wallet balance updated successfully",
+      msg: "reward points updated successfully",
       data: userExists.walletDetails.balance,
     });
   } catch (error) {
@@ -286,7 +286,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
         user.walletDetails.balance - withdrawRequest.amount <
         minimumBalance
       ) {
-        return res.status(500).json({ msg: "Insufficient wallet balance" });
+        return res.status(500).json({ msg: "Insufficient reward points" });
       }
       withdrawRequest.status = "approved";
       actionText = "approved";
@@ -371,7 +371,7 @@ const deductWalletBalance = async (req, res) => {
             $set: {
               "walletDetails.balance": user.walletDetails.balance,
               "walletDetails.nextMonthDeduction":
-                userwalletDetailsnextMonthDeduction,
+                user.walletDetails.nextMonthDeduction,
             },
           },
         },
@@ -385,7 +385,7 @@ const deductWalletBalance = async (req, res) => {
           orderId: null,
           amount: actualDeducted, // now correct
           category: "monthlyDeduction",
-          narration: "Amount deducted as monthly wallet maintenance fee",
+          narration: "Amount deducted as monthly maintenance fee",
           createdAt: new Date(),
           updatedAt: new Date(),
         });

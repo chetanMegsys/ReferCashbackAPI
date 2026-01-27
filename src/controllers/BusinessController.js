@@ -10,8 +10,8 @@ const addBusiness = async (req, res) => {
     const formattedCategories = Array.isArray(categories)
       ? categories
       : categories
-      ? [categories]
-      : [];
+        ? [categories]
+        : [];
 
     // ✅ Use simple object format for location
     const location = {
@@ -49,7 +49,7 @@ const addBusiness = async (req, res) => {
     const updatedBusiness = await businessModel.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedBusiness) {
@@ -82,9 +82,17 @@ const getBusiness = async (req, res) => {
     // Filter by search text
     if (searchText && searchText.trim() !== "") {
       const regex = new RegExp(searchText, "i"); // case-insensitive
-      filter.$or = [{ businessName: regex }, { address: regex }];
+      filter.$or = [
+        { businessName: regex },
+        { address: regex },
+        { Pincode: regex },
+      ];
     }
 
+    // ✅ Filter by Pincode
+    // if (pincode && pincode.toString().trim() !== "") {
+    //   filter.Pincode = pincode.toString();
+    // }
     // Filter by location only if lat and long are provided
     if (lat && long) {
       filter.location = {

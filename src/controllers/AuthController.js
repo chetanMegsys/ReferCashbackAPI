@@ -131,7 +131,7 @@ const registerUser = async (req, res) => {
       rationCardNumber,
       permanentPincode: permanentPincode,
       currentPincode: currentPincode,
-      status: "active",
+      status: role === "shopkeeper" ? "pending" : "active",
     };
 
     // 7️⃣ Save new user
@@ -185,7 +185,7 @@ const login = async (req, res) => {
         .send({ msg: "Please Enter Mobile Number and Password" });
     }
 
-    const user = await userModel.findOne({ mobile });
+    const user = await userModel.findOne({ mobile, status: "active" });
 
     if (!user) {
       return res.status(400).send({ msg: "User does not exist" });

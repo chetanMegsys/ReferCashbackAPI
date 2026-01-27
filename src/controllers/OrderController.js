@@ -8,6 +8,7 @@ const {
   isUserExists,
   isBusinessExists,
   businessDetails,
+  isUserIdExists,
 } = require("../CommanFuntion/commonQueries/commonQuerries");
 const { paginateArray } = require("../CommanFuntion/Pagination");
 const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
@@ -81,7 +82,7 @@ const createOrder = async (req, res) => {
         msg: "This business is not available",
       });
     }
-    const isCustomerExists = await isUserExists(userId, "customer");
+    const isCustomerExists = await isUserIdExists(userId, "customer");
 
     if (!isCustomerExists) {
       return res.status(400).send({
@@ -115,7 +116,7 @@ const createOrder = async (req, res) => {
       const walletDetails = await getWalletDetails(userId);
 
       if (walletDetails.balance < amount) {
-        return res.status(400).send({ msg: "Insufficient Wallet Balance" });
+        return res.status(400).send({ msg: "Insufficient reward points " });
       }
     }
 
@@ -127,11 +128,11 @@ const createOrder = async (req, res) => {
       orderAmount: amount,
     });
 
-    if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
-      return res.status(400).send({
-        msg: "This shopkeeper is not eligible for cashback.",
-      });
-    }
+    // if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
+    //   return res.status(400).send({
+    //     msg: "No reward points balance available at the merchant side",
+    //   });
+    // }
 
     const newOrder = new orderModel({
       userId,
@@ -249,7 +250,7 @@ const acceptOrRejectOrder = async (req, res) => {
       );
       if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
         return res.status(400).json({
-          msg: "You are not eligible to accept this order due to insufficient wallet balance.",
+          msg: "You are not eligible to accept this order due to insufficient reward points balance.",
         });
       }
       const allTransactions = [];
@@ -262,10 +263,8 @@ const acceptOrRejectOrder = async (req, res) => {
         category: "cashback",
         narration: `Cashback deduction for order ${order?.orderId}`,
       });
-    
 
       const amount = cashbackSummary?.totalCashback;
-   
 
       await userModel.findByIdAndUpdate(
         order?.shopkeeperId,
@@ -371,8 +370,6 @@ const acceptOrRejectOrder = async (req, res) => {
         });
       }
       if (order?.isWalletSelected) {
-       
-
         let creditAmount = order.amount || 0;
         // 1️⃣ Refund to wallet
         await updateUserWallet(
@@ -491,13 +488,13 @@ const acceptOrRejectOrder = async (req, res) => {
         });
 
         return res.status(200).send({
-          msg: "Order rejected and wallet refund processed successfully",
+          msg: "Order rejected and reward points refund processed successfully",
         });
       }
 
       // If order was NOT paid by wallet → no refund needed
       return res.status(200).send({
-        msg: "Order rejected successfully (no wallet refund)",
+        msg: "Order rejected successfully ",
       });
     }
   } catch (err) {
@@ -545,7 +542,7 @@ const cancelOrder = async (req, res) => {
         transactionType: "credit",
         amount,
         category: "refund",
-        narration: `Order ${order.orderId} cancelled - refund to wallet`,
+        narration: `Order ${order.orderId} cancelled - reward points refunded`,
       });
 
       // Update user wallet (balance + cashback points)
@@ -603,11 +600,135 @@ const getOrdersByMonth = async (req, res) => {
       };
     }
 
+    // const result = await orderModel.aggregate([
+    //   {
+    //     $match: matchCondition,
+    //   },
+    //   // 🏪 Lookup shopkeeper data
+    //   {
+    //     $lookup: {
+    //       from: "users",
+    //       localField: "shopkeeperId",
+    //       foreignField: "_id",
+    //       as: "shopkeeper",
+    //     },
+    //   },
+    //   { $unwind: "$shopkeeper" },
+
+    //   // 🧑 Lookup user data
+    //   {
+    //     $lookup: {
+    //       from: "users",
+    //       localField: "userId",
+    //       foreignField: "_id",
+    //       as: "user",
+    //     },
+    //   },
+    //   { $unwind: "$user" },
+
+    //   // 🏢 Lookup business info
+    //   {
+    //     $lookup: {
+    //       from: "businesses",
+    //       localField: "businessId",
+    //       foreignField: "_id",
+    //       as: "business",
+    //     },
+    //   },
+    //   { $unwind: { path: "$business", preserveNullAndEmptyArrays: true } },
+
+    //   // 📅 Add readable date formats
+    //   {
+    //     $addFields: {
+    //       year: { $year: "$createdAt" },
+    //       monthYear: {
+    //         $concat: [
+    //           {
+    //             $dateToString: {
+    //               format: "%B",
+    //               date: "$createdAt",
+    //             },
+    //           },
+    //           " ’",
+    //           {
+    //             $substr: [
+    //               { $dateToString: { format: "%Y", date: "$createdAt" } },
+    //               2,
+    //               2,
+    //             ],
+    //           },
+    //         ],
+    //       },
+    //       formattedDate: {
+    //         $dateToString: {
+    //           format: "%d %b %Y",
+    //           date: "$createdAt",
+    //         },
+    //       },
+    //     },
+    //   },
+
+    //   { $sort: { createdAt: -1 } },
+
+    //   // 📦 Group orders by month
+    //   {
+    //     $group: {
+    //       _id: "$monthYear",
+    //       orders: {
+    //         $push: {
+    //           id: "$_id",
+    //           date: "$formattedDate",
+    //           amount: "$amount",
+    //           status: "$status",
+    //           isWalletSelected: "$isWalletSelected",
+    //           businessName: "$business.businessName",
+
+    //           // 👤 User info
+    //           user: {
+    //             id: "$user._id",
+    //             name: {
+    //               $concat: ["$user.firstName", " ", "$user.lastName"],
+    //             },
+    //             image: "$user.imageUrl",
+    //             mobile: "$user.mobile",
+    //           },
+
+    //           // 🏪 Shopkeeper info
+    //           shopkeeper: {
+    //             id: "$shopkeeper._id",
+    //             name: {
+    //               $concat: [
+    //                 "$shopkeeper.firstName",
+    //                 " ",
+    //                 "$shopkeeper.lastName",
+    //               ],
+    //             },
+    //             image: "$shopkeeper.imageUrl",
+    //             mobile: "$shopkeeper.mobile",
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+
+    //   {
+    //     $project: {
+    //       month: "$_id",
+    //       year: "$_id.year",
+    //       orders: 1,
+    //       _id: 0,
+    //     },
+    //   },
+    //   { $sort: { month: 1, year: 1 } },
+    // ]);
+
     const result = await orderModel.aggregate([
+      // 🔍 Match conditions
       {
         $match: matchCondition,
       },
-      // 🏪 Lookup shopkeeper data
+
+      // 🏪 Lookup shopkeeper
       {
         $lookup: {
           from: "users",
@@ -618,7 +739,7 @@ const getOrdersByMonth = async (req, res) => {
       },
       { $unwind: "$shopkeeper" },
 
-      // 🧑 Lookup user data
+      // 👤 Lookup user
       {
         $lookup: {
           from: "users",
@@ -629,7 +750,7 @@ const getOrdersByMonth = async (req, res) => {
       },
       { $unwind: "$user" },
 
-      // 🏢 Lookup business info
+      // 🏢 Lookup business
       {
         $lookup: {
           from: "businesses",
@@ -640,9 +761,12 @@ const getOrdersByMonth = async (req, res) => {
       },
       { $unwind: { path: "$business", preserveNullAndEmptyArrays: true } },
 
-      // 📅 Add readable date formats
+      // 📅 Add date fields (numeric + display)
       {
         $addFields: {
+          year: { $year: "$createdAt" },
+          monthNumber: { $month: "$createdAt" },
+
           monthYear: {
             $concat: [
               {
@@ -661,6 +785,7 @@ const getOrdersByMonth = async (req, res) => {
               },
             ],
           },
+
           formattedDate: {
             $dateToString: {
               format: "%d %b %Y",
@@ -670,12 +795,19 @@ const getOrdersByMonth = async (req, res) => {
         },
       },
 
-      { $sort: { createdAt: -1 } },
+      // 🔽 Sort orders inside each month (latest first)
+      {
+        $sort: { createdAt: -1 },
+      },
 
-      // 📦 Group orders by month
+      // 📦 Group by year + month
       {
         $group: {
-          _id: "$monthYear",
+          _id: {
+            year: "$year",
+            month: "$monthNumber",
+            label: "$monthYear",
+          },
           orders: {
             $push: {
               id: "$_id",
@@ -688,9 +820,7 @@ const getOrdersByMonth = async (req, res) => {
               // 👤 User info
               user: {
                 id: "$user._id",
-                name: {
-                  $concat: ["$user.firstName", " ", "$user.lastName"],
-                },
+                name: { $concat: ["$user.firstName", " ", "$user.lastName"] },
                 image: "$user.imageUrl",
                 mobile: "$user.mobile",
               },
@@ -713,14 +843,24 @@ const getOrdersByMonth = async (req, res) => {
         },
       },
 
+      // 🎯 Final shape
       {
         $project: {
-          month: "$_id",
-          orders: 1,
           _id: 0,
+          month: "$_id.label",
+          year: "$_id.year",
+          monthNumber: "$_id.month",
+          orders: 1,
         },
       },
-      { $sort: { month: 1 } },
+
+      // 📊 Sort months correctly (Year → Month)
+      {
+        $sort: {
+          year: -1,
+          monthNumber: -1,
+        },
+      },
     ]);
 
     res.status(200).send({
