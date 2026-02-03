@@ -59,12 +59,6 @@ const registerUser = async (req, res) => {
       }
     }
 
-    // ✅ Permanent Pincode Validation
-    if (permanentPincode && !pincodeRegex.test(permanentPincode)) {
-      return res.status(400).send({
-        msg: "Invalid permanent address pincode",
-      });
-    }
     if (email && !emailRegex.test(email)) {
       return res.status(400).send({
         msg: "Invalid Email Address",

@@ -99,12 +99,10 @@ const userSchema = new mongoose.Schema(
     },
     permanentAddress: {
       type: String,
-      required: true,
       trim: true,
     },
     permanentPincode: {
       type: String,
-      required: true,
     },
 
     panCardNumber: {

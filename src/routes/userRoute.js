@@ -7,5 +7,6 @@ Router.post("/getUser", UserController.getUser);
 Router.post("/deleteUser", UserController.deleteUser);
 Router.post("/updateProfilePic", UserController.updateProfilePic);
 Router.post("/dashboardCounts", UserController.dashboardCounts);
+Router.post("/pincodeUserCount", UserController.pincodeUserCount);
 
 module.exports = Router;

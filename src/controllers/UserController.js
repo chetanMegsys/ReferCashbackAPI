@@ -58,7 +58,10 @@ const getUser = async (req, res) => {
     }
 
     // Fetch single user
-    const user = await userModel.findById(id);
+    const user = await userModel.findById(
+      id,
+      "-password -refreshToken -__v  -updatedAt -referalUser -createdAt",
+    );
     if (!user) {
       return res.status(404).send({ msg: "User not found", data: null });
     }
@@ -107,8 +110,7 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id, rationCardNumber, permanentPincode, currentPincode, upi } =
-      req.body;
+    const { id, rationCardNumber, currentPincode, upi } = req.body;
     // ✅ PINCODE REGEX
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
@@ -124,13 +126,6 @@ const updateUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Enter a valid UPI ID or 10-digit mobile number",
-      });
-    }
-
-    // ✅ Permanent Pincode Validation
-    if (permanentPincode && !pincodeRegex.test(permanentPincode)) {
-      return res.status(400).send({
-        msg: "Invalid permanent address pincode",
       });
     }
 
@@ -158,7 +153,7 @@ const updateUser = async (req, res) => {
     const updatedUser = await userModel.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!updatedUser) {
@@ -197,7 +192,7 @@ const deleteUser = async (req, res) => {
     const user = await userModel.findOneAndUpdate(
       { _id: userId, status: statusValue },
       { $set: { status: status } },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!user) {
@@ -240,7 +235,7 @@ const updateProfilePic = async (req, res) => {
       return res.status(400).send({
         status: false,
         msg: `Invalid file type. Allowed formats: ${allowedExtensions.join(
-          ", "
+          ", ",
         )}`,
       });
     }
@@ -367,10 +362,34 @@ const dashboardCounts = async (req, res) => {
   }
 };
 
+const pincodeUserCount = async (req, res) => {
+  try {
+    const { pincode } = req.body;
+
+    if (!pincode || typeof pincode !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Valid pincode is required",
+      });
+    }
+
+    const userCount = await userModel.countDocuments({
+      currentPincode: pincode.trim(),
+      status: "active",
+    });
+
+    return res.status(200).json({ success: true, count: userCount });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   updateUser: updateUser,
   getUser: getUser,
   updateProfilePic: updateProfilePic,
   deleteUser: deleteUser,
   dashboardCounts,
+  pincodeUserCount,
 };

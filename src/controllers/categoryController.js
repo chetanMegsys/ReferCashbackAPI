@@ -1,17 +1,54 @@
 const { paginateArray } = require("../CommanFuntion/Pagination");
 const categoryModel = require("../models/categoriesModel");
 
-const addCategory = async (req, res) => {
+// const addCategory = async (req, res) => {
+//   try {
+//     const { _id, name, minDiscount } = req.body;
+//     const category = await categoryModel.create(req.body);
+//     if (!category) {
+//       return res
+//         .status(400)
+//         .send({ msg: "adding category failed", data: null });
+//     }
+//     return res
+//       .status(200)
+//       .send({ msg: "Category Added Sucessfully", data: category });
+//   } catch (error) {
+//     return res.status(500).send({ msg: error.message });
+//   }
+// };
+const addUpdateCategory = async (req, res) => {
   try {
-    const category = await categoryModel.create(req.body);
-    if (!category) {
+    const { id, name, minDiscount } = req.body;
+
+    let category;
+
+    if (id) {
+      // 🔁 UPDATE
+      category = await categoryModel.findByIdAndUpdate(
+        id,
+        { name, minDiscount },
+        { new: true, runValidators: true },
+      );
+
+      if (!category) {
+        return res.status(404).send({ msg: "Category not found", data: null });
+      }
+
       return res
-        .status(400)
-        .send({ msg: "adding category failed", data: null });
+        .status(200)
+        .send({ msg: "Category Updated Successfully", data: category });
+    } else {
+      // ➕ ADD
+      category = await categoryModel.create({
+        name,
+        minDiscount,
+      });
+
+      return res
+        .status(201)
+        .send({ msg: "Category Added Successfully", data: category });
     }
-    return res
-      .status(200)
-      .send({ msg: "Category Added Sucessfully", data: category });
   } catch (error) {
     return res.status(500).send({ msg: error.message });
   }
@@ -69,7 +106,7 @@ const deleteCategory = async (req, res) => {
     const deleteCategoryData = await categoryModel.findOneAndUpdate(
       { _id: id, status: "active" },
       { $set: { status: "inactive" } },
-      { new: true }
+      { new: true },
     );
     if (!deleteCategoryData) {
       return res
@@ -84,7 +121,7 @@ const deleteCategory = async (req, res) => {
 };
 
 module.exports = {
-  addCategory: addCategory,
+  addUpdateCategory: addUpdateCategory,
   getCategory: getCategory,
   deleteCategory,
 };

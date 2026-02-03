@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { request } = require("../../app");
 
 const transactionSchema = mongoose.Schema({
   userId: {
@@ -17,6 +18,11 @@ const transactionSchema = mongoose.Schema({
   orderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "orders",
+  },
+  requestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "withdrawwalletbalancerequests",
+    default: null,
   },
   category: {
     type: String,

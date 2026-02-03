@@ -16,11 +16,31 @@ const walletBalanceModel = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
+    utrNo: {
+      type: String,
+      default: null,
+    },
+    history: {
+      type: [
+        {
+          amount: {
+            type: Number,
+            required: true,
+          },
+          requestedOn: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+        { _id: true },
+      ],
+      default: [],
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model(
   "withdrawWalletBalanceRequest",
-  walletBalanceModel
+  walletBalanceModel,
 );
