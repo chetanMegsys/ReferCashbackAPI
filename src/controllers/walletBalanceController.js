@@ -353,16 +353,21 @@ const approveRejecteWithdrawRequest = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(500).json({ msg: "User not found" });
+      return res.status(400).json({ msg: "User not found" });
     }
 
     let actionText = "";
     if (action === "approve") {
+      if (utrNo === "" || !utrNo) {
+        return res
+          .status(400)
+          .json({ msg: "UTR number is required for approval" });
+      }
       if (
         user.walletDetails.balance - withdrawRequest.amount <
         minimumBalance
       ) {
-        return res.status(500).json({ msg: "Insufficient reward points" });
+        return res.status(400).json({ msg: "Insufficient reward points" });
       }
       withdrawRequest.status = "approved";
       withdrawRequest.utrNo = utrNo || null;
@@ -390,7 +395,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
       if (!newTrans) {
         return res
-          .status(500)
+          .status(400)
           .json({ msg: "Failed to create transaction record" });
       }
     }
