@@ -36,23 +36,28 @@ const userSchema = new mongoose.Schema(
     bankName: {
       type: String,
       trim: true,
+      default: "",
     },
     accountHolderName: {
       type: String,
       trim: true,
+      default: "",
     },
     accountNo: {
       type: String,
       trim: true,
+      default: "",
     },
     ifscCode: {
       type: String,
       trim: true,
       uppercase: true,
+      default: "",
     },
     upi: {
       type: String,
       trim: true,
+      default: "",
     },
     role: {
       type: String,
