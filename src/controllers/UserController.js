@@ -179,23 +179,24 @@ const deleteUser = async (req, res) => {
   try {
     const { userId, status } = req.body;
     let finalStatusValue = "";
-    let statusValue = "";
 
-    if (status == "active") {
-      statusValue = "inactive";
+    const userData = await userModel.findById(userId);
+    if (!userData) {
+      return res.status(404).send({ msg: "User not found" });
+    }
+
+    if (userData.status == "active") {
       finalStatusValue = "unblocked";
-    } else if (status === "pending") {
-      statusValue = "active";
+    } else if (userData.status === "pending") {
       finalStatusValue = "approved";
-    } else if (status === "inactive") {
-      statusValue = "active";
+    } else if (userData.status === "inactive") {
       finalStatusValue = "blocked";
     } else {
       return res.status(400).send({ msg: "Invalid status value" });
     }
 
     const user = await userModel.findOneAndUpdate(
-      { _id: userId, status: statusValue },
+      { _id: userId },
       { $set: { status: status } },
       { new: true, runValidators: true },
     );
