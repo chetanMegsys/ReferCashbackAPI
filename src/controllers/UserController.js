@@ -20,7 +20,23 @@ const getUser = async (req, res) => {
           .find({ role: role.toLowerCase() })
           .select("-password -refreshToken -status -createdAt -updatedAt");
       } else {
-        users = await userModel.find();
+        users = await userModel.aggregate([
+          {
+            $addFields: {
+              statusOrder: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ["$status", "pending"] }, then: 1 },
+                    { case: { $eq: ["$status", "active"] }, then: 2 },
+                    { case: { $eq: ["$status", "inactive"] }, then: 3 },
+                  ],
+                  default: 4,
+                },
+              },
+            },
+          },
+          { $sort: { statusOrder: 1, createdAt: -1 } },
+        ]);
       }
       if (!users || users.length === 0) {
         return res
@@ -179,18 +195,20 @@ const deleteUser = async (req, res) => {
   try {
     const { userId, status } = req.body;
     let finalStatusValue = "";
-
+    if (!status) {
+      return res.status(400).send({ msg: "Status is required" });
+    }
     const userData = await userModel.findById(userId);
     if (!userData) {
       return res.status(404).send({ msg: "User not found" });
     }
 
     if (userData.status == "active") {
-      finalStatusValue = "unblocked";
+      finalStatusValue = "blocked";
     } else if (userData.status === "pending") {
       finalStatusValue = "approved";
     } else if (userData.status === "inactive") {
-      finalStatusValue = "blocked";
+      finalStatusValue = "unblocked";
     } else {
       return res.status(400).send({ msg: "Invalid status value" });
     }
