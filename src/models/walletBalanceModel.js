@@ -20,6 +20,7 @@ const walletBalanceModel = new mongoose.Schema(
       type: String,
       default: null,
     },
+    rejectResponse: { type: String, default: null },
     history: {
       type: [
         {

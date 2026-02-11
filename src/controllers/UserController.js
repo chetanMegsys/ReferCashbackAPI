@@ -7,6 +7,7 @@ const orderModel = require("./../models/orderModel");
 const businessModel = require("../models/businessModel");
 const { json } = require("body-parser");
 const { paginateArray } = require("../CommanFuntion/Pagination");
+const { default: mongoose } = require("mongoose");
 
 const getUser = async (req, res) => {
   try {
@@ -136,13 +137,15 @@ const updateUser = async (req, res) => {
       return res.status(400).send({ msg: "Please enter Id" });
     }
 
-    const upiValue = upi?.toLowerCase();
+    const upiValue = upi?.toLowerCase()?.trim();
 
-    if (!upiRegex.test(upiValue) && !mobileRegex.test(upiValue)) {
-      return res.status(400).json({
-        success: false,
-        message: "Enter a valid UPI ID or 10-digit mobile number",
-      });
+    if (upiValue?.length > 0) {
+      if (!upiRegex.test(upiValue) && !mobileRegex.test(upiValue)) {
+        return res.status(400).json({
+          success: false,
+          message: "Enter a valid UPI ID or 10-digit mobile number",
+        });
+      }
     }
 
     // ✅ Current Pincode Validation
@@ -166,11 +169,15 @@ const updateUser = async (req, res) => {
     let updateData = req.body;
     let oldImagePath = null;
 
-    const updatedUser = await userModel.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true },
-    );
+    const updatedUser = await userModel
+      .findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true, runValidators: true },
+      )
+      .select(
+        "-password -deviceDetails -refreshToken -__v -createdAt -updatedAt",
+      );
 
     if (!updatedUser) {
       return res.status(400).send({
@@ -409,6 +416,71 @@ const pincodeUserCount = async (req, res) => {
   }
 };
 
+const getLevelTree = async (req, res) => {
+  try {
+    const { userId, maxLevel = 5 } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    const tree = await userModel.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(userId),
+        },
+      },
+      {
+        $graphLookup: {
+          from: "users",
+          startWith: "$_id",
+          connectFromField: "_id",
+          connectToField: "parentId",
+          as: "downline",
+          // maxDepth: maxLevel - 1,
+          depthField: "level",
+        },
+      },
+      {
+        $unwind: {
+          path: "$downline",
+        },
+      },
+      {
+        $project: {
+          _id: "$downline._id",
+          firstName: "$downline.firstName",
+          lastName: "$downline.lastName",
+          mobile: "$downline.mobile",
+          email: "$downline.email",
+          level: { $add: ["$downline.level", 1] }, // Level starts from 1
+          parentId: "$downline.parentId",
+          status: "$downline.status",
+          referalUser: "$downline.referalUser",
+        },
+      },
+      {
+        $group: {
+          _id: "$level",
+          users: { $push: "$$ROOT" },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      totalLevels: tree.length,
+      data: tree,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   updateUser: updateUser,
   getUser: getUser,
@@ -416,4 +488,5 @@ module.exports = {
   deleteUser: deleteUser,
   dashboardCounts,
   pincodeUserCount,
+  getLevelTree,
 };

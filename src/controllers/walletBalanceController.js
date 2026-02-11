@@ -326,7 +326,7 @@ const getWithdrawRequests = async (req, res) => {
 
 const approveRejecteWithdrawRequest = async (req, res) => {
   try {
-    const { withdrawId, action, utrNo } = req.body;
+    const { withdrawId, action, utrNo, rejectResponse } = req.body;
     if (!withdrawId) {
       return res.status(500).json({ msg: "withdrawId is required" });
     }
@@ -373,6 +373,11 @@ const approveRejecteWithdrawRequest = async (req, res) => {
       withdrawRequest.utrNo = utrNo || null;
       actionText = "approved";
     } else if (action === "reject") {
+      if (!rejectResponse || rejectResponse.trim() === "") {
+        return res.status(400).json({ msg: "Reject reason is required" });
+      }
+
+      withdrawRequest.rejectResponse = rejectResponse.trim();
       withdrawRequest.status = "rejected";
       actionText = "rejected";
     }
