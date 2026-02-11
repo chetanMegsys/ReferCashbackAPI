@@ -1073,16 +1073,10 @@ const getOrdersForAdmin = async (req, res) => {
       searchKeys: ["amount", "status", "isWalletSelected", "orderId"],
     });
 
-    const startIndex =
-      isPagination && pageNumber && pageLimit
-        ? (pageNumber - 1) * pageLimit
-        : 0;
-
     const paginatedWithFormattedDate = {
       ...paginated,
-      data: paginated.data.map((item, index) => {
+      data: paginated.data.map((item) => {
         const formatted = {
-          srNo: startIndex + index + 1, // 👈 serial number
           ...item,
           formattedDate: formatTo12Hour(item.createdAt),
         };

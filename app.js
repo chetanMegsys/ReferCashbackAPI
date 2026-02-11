@@ -10,6 +10,7 @@ const businessRoute = require("./src/routes/businessRoute");
 const orderRoute = require("./src/routes/orderRoute");
 const transactionRoute = require("./src/routes/transactionRoute");
 const categoryRoute = require("./src/routes/categoryRoute");
+const paymentMethodRouter = require("./src/routes/PaymentMethodRoute");
 const companyRoute = require("./src/routes/companyRoute");
 const auth = require("./src/controllers/AuthController");
 const walletBalance = require("./src/routes/walletBalanceRoute");
@@ -40,6 +41,7 @@ app.use("/comapany", companyRoute);
 app.use("/order", orderRoute);
 app.use("/transaction", transactionRoute);
 app.use("/category", categoryRoute);
+app.use("/paymentmethod", paymentMethodRouter);
 
 app.use(express.urlencoded({ extended: true }));
 

@@ -4,6 +4,10 @@ const userModel = require("./../models/userModel");
 const transactionModel = require("./../models/transactionModel");
 const { paginateArray } = require("../CommanFuntion/Pagination");
 const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
+const PaymentMethodModel = require("../models/PaymentMethodModel");
+const {
+  isUserIdExists,
+} = require("../CommanFuntion/commonQueries/commonQuerries");
 
 // const withdrawRequest = async (req, res) => {
 //   try {
@@ -186,11 +190,45 @@ const addWalletBalance = async (req, res) => {
 
 const getWithdrawRequests = async (req, res) => {
   try {
-    const { withdrawId, pageNumber, pageLimit, isPagination, searchText } =
-      req.body;
+    const {
+      userId,
+      withdrawId,
+      pageNumber,
+      pageLimit,
+      isPagination,
+      searchText,
+    } = req.body;
 
     if (!withdrawId) {
+      if (userId) {
+        // 1️⃣ Validate ObjectId format first
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          return res.status(400).json({ msg: "Invalid userId" });
+        }
+
+        // 2️⃣ Check if user exists in DB
+        const userExists = await isUserIdExists(userId);
+        if (!userExists) {
+          return res.status(404).json({ msg: "User does not exist" });
+        }
+      }
+      let matchStage = {};
+
+      const isValidUserId =
+        userId &&
+        userId !== "" &&
+        userId !== "null" &&
+        userId !== "undefined" &&
+        mongoose.Types.ObjectId.isValid(userId);
+
+      if (isValidUserId) {
+        matchStage.userId = new mongoose.Types.ObjectId(userId);
+      }
+
       const allRequests = await walletBalanceModel.aggregate([
+        {
+          $match: matchStage, // 👈 IMPORTANT (filter by userId)
+        },
         {
           $addFields: {
             statusOrder: {
@@ -199,6 +237,7 @@ const getWithdrawRequests = async (req, res) => {
                   { case: { $eq: ["$status", "pending"] }, then: 1 },
                   { case: { $eq: ["$status", "approved"] }, then: 2 },
                   { case: { $eq: ["$status", "rejected"] }, then: 3 },
+                  { case: { $eq: ["$status", "cancelled"] }, then: 4 },
                 ],
                 default: 4,
               },
@@ -225,10 +264,25 @@ const getWithdrawRequests = async (req, res) => {
           },
         },
         {
+          $lookup: {
+            from: "paymentmethods", // check actual collection name
+            localField: "paymentMethodId",
+            foreignField: "_id",
+            as: "paymentMethodDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$paymentMethodDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
           $project: {
             statusOrder: 0,
             updatedAt: 0,
             __v: 0,
+            paymentMethodId: 0,
             "userDetails.password": 0,
             "userDetails.__v": 0,
             "userDetails.refreshToken": 0,
@@ -237,6 +291,10 @@ const getWithdrawRequests = async (req, res) => {
             "userDetails.updatedAt": 0,
             "userDetails.referalUser": 0,
             "userDetails.deviceDetails": 0,
+
+            "paymentMethodDetails.__v": 0,
+            "paymentMethodDetails.createdAt": 0,
+            "paymentMethodDetails.updatedAt": 0,
           },
         },
       ]);
@@ -244,24 +302,6 @@ const getWithdrawRequests = async (req, res) => {
       if (!allRequests || allRequests.length === 0) {
         return res.status(404).json({ msg: "No withdraw requests found" });
       }
-
-      // const allRequestsWithFormattedDate = allRequests.map((item) => {
-      //   const formatted = {
-      //     ...item,
-      //     formattedDate: formatTo12Hour(item.createdAt),
-      //   };
-      //   delete formatted.createdAt;
-      //   return formatted;
-      // });
-
-      // const paginated = paginateArray({
-      //   data: allRequestsWithFormattedDate,
-      //   page: pageNumber,
-      //   limit: pageLimit,
-      //   isPagination,
-      //   search: searchText,
-      //   searchKeys: ["amount", "status"],
-      // });
 
       const paginated = paginateArray({
         data: allRequests,
@@ -279,7 +319,6 @@ const getWithdrawRequests = async (req, res) => {
             ...item,
             formattedDate: formatTo12Hour(item.createdAt),
           };
-          delete formatted.createdAt;
           return formatted;
         }),
       };
@@ -299,6 +338,10 @@ const getWithdrawRequests = async (req, res) => {
           path: "userId",
           select:
             "-password -refreshToken -__v -walletDetails -updatedAt -referalUser -createdAt -deviceDetails",
+        })
+        .populate({
+          path: "paymentMethodId",
+          select: "-__v -updatedAt -createdAt",
         });
 
       if (!request) {
@@ -326,11 +369,12 @@ const getWithdrawRequests = async (req, res) => {
 
 const approveRejecteWithdrawRequest = async (req, res) => {
   try {
-    const { withdrawId, action, utrNo, rejectResponse } = req.body;
+    const { withdrawId, action, utrNo, rejectResponse, paymentMethodId } =
+      req.body;
     if (!withdrawId) {
       return res.status(500).json({ msg: "withdrawId is required" });
     }
-    if (!action || !["approve", "reject"].includes(action)) {
+    if (!action || !["approve", "reject", "cancelled"].includes(action)) {
       return res.status(500).json({ msg: "Valid action is required" });
     }
     if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
@@ -358,6 +402,27 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
     let actionText = "";
     if (action === "approve") {
+      if (
+        !paymentMethodId ||
+        !mongoose.Types.ObjectId.isValid(paymentMethodId)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid payment method is required",
+        });
+      }
+
+      const paymentMethodIdExist = await PaymentMethodModel.findOne({
+        _id: paymentMethodId,
+        status: "Active", // make sure case matches schema enum
+      });
+      if (!paymentMethodIdExist) {
+        return res.status(404).json({
+          success: false,
+          message: "Payment method not found or inactive",
+        });
+      }
+
       if (utrNo === "" || !utrNo) {
         return res
           .status(400)
@@ -371,6 +436,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
       }
       withdrawRequest.status = "approved";
       withdrawRequest.utrNo = utrNo || null;
+      withdrawRequest.paymentMethodId = paymentMethodId;
       actionText = "approved";
     } else if (action === "reject") {
       if (!rejectResponse || rejectResponse.trim() === "") {
@@ -380,6 +446,9 @@ const approveRejecteWithdrawRequest = async (req, res) => {
       withdrawRequest.rejectResponse = rejectResponse.trim();
       withdrawRequest.status = "rejected";
       actionText = "rejected";
+    } else if (action === "cancelled") {
+      withdrawRequest.status = "cancelled";
+      actionText = "cancelled";
     }
 
     const savedRequest = await withdrawRequest.save();

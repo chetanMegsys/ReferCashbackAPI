@@ -13,7 +13,7 @@ const walletBalanceModel = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "cancelled"],
       default: "pending",
     },
     utrNo: {
@@ -21,6 +21,11 @@ const walletBalanceModel = new mongoose.Schema(
       default: null,
     },
     rejectResponse: { type: String, default: null },
+    paymentMethodId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentMethod",
+      default: null,
+    },
     history: {
       type: [
         {
