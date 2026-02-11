@@ -127,7 +127,7 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id, rationCardNumber, currentPincode, upi } = req.body;
+    const { id, rationCardNumber, currentPincode, upi, mobile } = req.body;
     // ✅ PINCODE REGEX
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
@@ -135,6 +135,12 @@ const updateUser = async (req, res) => {
 
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
+    }
+    const existingMobile = await userModel.findOne({ mobile });
+    if (existingMobile) {
+      return res
+        .status(400)
+        .send({ msg: "Mobile number is already registered by another user." });
     }
 
     const upiValue = upi?.toLowerCase()?.trim();
