@@ -136,11 +136,20 @@ const updateUser = async (req, res) => {
     if (!id) {
       return res.status(400).send({ msg: "Please enter Id" });
     }
-    const existingMobile = await userModel.findOne({ mobile });
-    if (existingMobile) {
-      return res
-        .status(400)
-        .send({ msg: "Mobile number is already registered by another user." });
+    // const existingMobile = await userModel.findOne({ mobile });
+    // if (existingMobile) {
+    //   return res
+    //     .status(400)
+    //     .send({ msg: "Mobile number is already registered by another user." });
+    // }
+    if (mobile) {
+      const existingMobile = await userModel.findOne({ mobile });
+
+      if (existingMobile && existingMobile._id.toString() !== id) {
+        return res.status(400).send({
+          msg: "Mobile number is already registered by another user.",
+        });
+      }
     }
 
     const upiValue = upi?.toLowerCase()?.trim();

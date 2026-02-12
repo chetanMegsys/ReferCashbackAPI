@@ -988,7 +988,7 @@ const graph = async (req, res) => {
 const getOrdersForAdmin = async (req, res) => {
   const { orderId, pageNumber, pageLimit, isPagination, searchText } = req.body;
 
-  let matchStage = { status: "Accepted" };
+  let matchStage = {};
 
   if (orderId) {
     matchStage._id = orderId;
@@ -999,6 +999,22 @@ const getOrdersForAdmin = async (req, res) => {
       {
         $match: {
           ...matchStage,
+        },
+      },
+      {
+        $addFields: {
+          statusOrder: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                { case: { $eq: ["$status", "Accepted"] }, then: 2 },
+                { case: { $eq: ["$status", "Completed"] }, then: 3 },
+                { case: { $eq: ["$status", "Rejected"] }, then: 4 },
+                { case: { $eq: ["$status", "Cancelled"] }, then: 5 },
+              ],
+              default: 6,
+            },
+          },
         },
       },
       {
@@ -1038,6 +1054,9 @@ const getOrdersForAdmin = async (req, res) => {
         $unwind: { path: "$businessDetails", preserveNullAndEmptyArrays: true },
       },
       {
+        $sort: { statusOrder: 1, createdAt: -1 },
+      },
+      {
         $project: {
           _id: 1,
           amount: 1, // order.amount
@@ -1052,11 +1071,6 @@ const getOrdersForAdmin = async (req, res) => {
           isWalletSelected: 1,
           orderId: 1,
           status: 1,
-        },
-      },
-      {
-        $sort: {
-          createdAt: -1,
         },
       },
     ]);
