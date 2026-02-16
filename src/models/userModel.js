@@ -154,6 +154,9 @@ const userSchema = new mongoose.Schema(
         default: 0,
       },
       nextMonthDeduction: { type: Number, default: 0 },
+      admiCharge: { type: Number },
+      lapIncome: { type: Number },
+      monthlyIncome: { type: Number },
     },
   },
 

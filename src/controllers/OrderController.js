@@ -12,6 +12,7 @@ const {
 } = require("../CommanFuntion/commonQueries/commonQuerries");
 const { paginateArray } = require("../CommanFuntion/Pagination");
 const { formatTo12Hour } = require("../CommanFuntion/convertTo12hours");
+const updateLapIncome = require("../CommanFuntion/updateLapIncome");
 
 const getWalletDetails = async (userId) => {
   const user = await userModel
@@ -175,24 +176,130 @@ const createOrder = async (req, res) => {
   }
 };
 
+// const updateUserWallet = async (
+//   userId,
+//   amount,
+//   type = "referral",
+//   alsoAddBalance = false,
+// ) => {
+//   if (!userId || !amount || amount <= 0) return;
+
+//   const user = await userModel.findById(userId);
+//   if (!user) return;
+
+//   const updateObj = {};
+//   if (type === "customer") updateObj["walletDetails.cashbackPoints"] = amount;
+//   else updateObj["walletDetails.referralPoints"] = amount;
+
+//   if (alsoAddBalance) updateObj["walletDetails.balance"] = amount;
+
+//   await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+// };
+
 const updateUserWallet = async (
   userId,
   amount,
   type = "referral",
-  alsoAddBalance = false,
+  alsoAddBalance = true,
+  applyTDS = false,
 ) => {
-  if (!userId || !amount || amount <= 0) return;
+  try {
+    if (!userId || !amount || amount <= 0) return;
 
-  const user = await userModel.findById(userId);
-  if (!user) return;
+    const TDS_PERCENT = Number(process.env.TDS_PERCENT) || 0;
 
-  const updateObj = {};
-  if (type === "customer") updateObj["walletDetails.cashbackPoints"] = amount;
-  else updateObj["walletDetails.referralPoints"] = amount;
+    const user = await userModel.findById(userId);
+    if (!user) return;
 
-  if (alsoAddBalance) updateObj["walletDetails.balance"] = amount;
+    let creditAmount = Number(amount);
+    let tdsAmount = 0;
 
-  await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+    // =============================
+    // APPLY TDS
+    // =============================
+    if (applyTDS && TDS_PERCENT > 0) {
+      tdsAmount = +(creditAmount * (TDS_PERCENT / 100)).toFixed(2);
+      creditAmount = +(creditAmount - tdsAmount).toFixed(2);
+    }
+
+    const updateObj = {};
+
+    // Update Points
+    if (type === "customer") {
+      updateObj["walletDetails.cashbackPoints"] = creditAmount;
+    } else {
+      updateObj["walletDetails.referralPoints"] = creditAmount;
+    }
+
+    // Update Balance
+    if (alsoAddBalance) {
+      updateObj["walletDetails.balance"] = creditAmount;
+    }
+
+    // =============================
+    // CREDIT USER (NO TRANSACTION ENTRY)
+    // =============================
+    await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+
+    // =============================
+    // TDS LOGIC
+    // =============================
+    if (applyTDS && tdsAmount > 0) {
+      // 🔹 Find active admin
+      const admin = await userModel.findOne({
+        role: "admin",
+        status: "active",
+      });
+
+      if (!admin) {
+        throw new Error("Active admin not found");
+      }
+
+      // 🔹 If user is admin → skip TDS
+      if (userId.toString() === admin._id.toString()) {
+        tdsAmount = 0; // no deduction
+      }
+
+      if (tdsAmount > 0) {
+        // 🔹 Credit TDS to Admin Wallet
+        await userModel.findByIdAndUpdate(admin._id, {
+          $inc: {
+            "walletDetails.balance": tdsAmount,
+            "walletDetails.admiCharge": tdsAmount,
+          },
+        });
+
+        // =============================
+        // ONLY TWO TRANSACTIONS
+        // =============================
+        await transactionModel.insertMany([
+          {
+            userId,
+            transactionType: "debit",
+            amount: tdsAmount,
+            category: "adminCharge",
+            narration: `${TDS_PERCENT}% admin charges deducted`,
+          },
+          {
+            userId: admin._id,
+            transactionType: "credit",
+            amount: tdsAmount,
+            category: "adminCharge",
+            narration: `admin charges collected from user ${userId}`,
+          },
+        ]);
+      }
+    }
+
+    return {
+      creditedAmount: creditAmount,
+      tdsAmount,
+      tdsPercent: TDS_PERCENT,
+    };
+  } catch (error) {
+    console.error("Error in updateUserWallet:", error);
+    throw error;
+  }
 };
 
 const acceptOrRejectOrder = async (req, res) => {
@@ -239,7 +346,7 @@ const acceptOrRejectOrder = async (req, res) => {
       order.status = "Accepted";
 
       // 🔹 Calculate cashback
-      const { cashbackReceivers, cashbackSummary } =
+      const { cashbackReceivers, cashbackSummary, lapIncome } =
         await calculateCashbackHelper({
           userId: order.userId,
           shopkeeperId: order.shopkeeperId,
@@ -282,6 +389,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.customer.cashback,
           "customer",
           true,
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers?.customer?.userId,
@@ -299,6 +407,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.referrer.userId,
           cashbackReceivers.referrer.cashback,
           "referral",
+          true,
           true,
         );
         allTransactions.push({
@@ -339,6 +448,7 @@ const acceptOrRejectOrder = async (req, res) => {
               entry.cashback,
               "referral",
               true,
+              true,
             );
             allTransactions.push({
               userId: entry.userId,
@@ -359,6 +469,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.ror.receiver.cashback,
           "referral",
           true,
+          true,
         );
         allTransactions.push({
           userId: cashbackReceivers.ror.receiver.userId,
@@ -376,6 +487,7 @@ const acceptOrRejectOrder = async (req, res) => {
           order.shopkeeperId,
           creditAmount,
           "customer",
+          true,
           true,
         );
 
@@ -395,6 +507,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.shopkeeper.userId,
           cashbackReceivers.shopkeeper.cashback,
           "referral",
+          true,
           true,
         );
         allTransactions.push({
@@ -418,6 +531,7 @@ const acceptOrRejectOrder = async (req, res) => {
             admin.cashback,
             "referral",
             true,
+            true,
           );
           allTransactions.push({
             userId: admin.userId,
@@ -429,32 +543,39 @@ const acceptOrRejectOrder = async (req, res) => {
           });
         }
       }
-      // 🔹 Admin cashback
-      if (
-        Array.isArray(cashbackReceivers.admin) &&
-        cashbackReceivers.admin.length > 0
-      ) {
-        for (const admin of cashbackReceivers.admin) {
-          await updateUserWallet(
-            admin.userId,
-            admin.cashback,
-            "referral",
-            true,
-          );
-          allTransactions.push({
-            userId: admin.userId,
-            transactionType: "credit",
-            orderId: order._id,
-            amount: admin.cashback,
-            category: "adminCharge",
-            narration: `${userName} admin charges`,
-          });
-        }
-      }
+      // // 🔹 Admin cashback
+      // if (
+      //   Array.isArray(cashbackReceivers.admin) &&
+      //   cashbackReceivers.admin.length > 0
+      // ) {
+      //   for (const admin of cashbackReceivers.admin) {
+      //     await updateUserWallet(
+      //       admin.userId,
+      //       admin.cashback,
+      //       "referral",
+      //       true,
+      //       true,
+      //     );
+      //     allTransactions.push({
+      //       userId: admin.userId,
+      //       transactionType: "credit",
+      //       orderId: order._id,
+      //       amount: admin.cashback,
+      //       category: "adminCharge",
+      //       narration: `${userName} admin charges`,
+      //     });
+      //   }
+      // }
 
       // 🔹 Save all transactions
       if (allTransactions.length > 0)
         await transactionModel.insertMany(allTransactions);
+
+      for (const entry of lapIncome) {
+        if (!entry || !entry.skippedUserId) continue;
+
+        await updateLapIncome(entry.skippedUserId, entry.amount || 0);
+      }
 
       await order.save();
       return res.status(200).send({
@@ -908,6 +1029,8 @@ const calculateCashback = async (req, res) => {
     }
     return res.status(200).json(result);
   } catch (err) {
+    console.log(err);
+
     return res.status(500).json({ message: "Server error" });
   }
 };

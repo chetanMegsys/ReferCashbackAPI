@@ -504,6 +504,7 @@ const deductWalletBalance = async (req, res) => {
 
     const bulkOps = [];
     const transactions = [];
+    let totalDeductedAmount = 0; // 🔹 Track total deducted
 
     for (const user of users) {
       const totalDeduction =
@@ -520,6 +521,9 @@ const deductWalletBalance = async (req, res) => {
           totalDeduction - user.walletDetails.balance;
         user.walletDetails.balance = 0;
       }
+
+      // 🔹 Add to total deducted for admin
+      totalDeductedAmount += actualDeducted;
 
       bulkOps.push({
         updateOne: {
@@ -540,7 +544,7 @@ const deductWalletBalance = async (req, res) => {
           userId: user._id,
           transactionType: "debit",
           orderId: null,
-          amount: actualDeducted, // now correct
+          amount: actualDeducted,
           category: "monthlyDeduction",
           narration: "Amount deducted as monthly maintenance fee",
           createdAt: new Date(),
@@ -558,10 +562,41 @@ const deductWalletBalance = async (req, res) => {
         await transactionModel.insertMany(transactions);
       }
 
+      // 🔹 Add totalDeductedAmount to admin monthlyIncome
+      const adminUser = await userModel.findOne({
+        role: "admin",
+        status: "active",
+      });
+      if (adminUser) {
+        await userModel.findByIdAndUpdate(
+          adminUser._id,
+          {
+            $inc: {
+              "walletDetails.monthlyIncome": totalDeductedAmount,
+              "walletDetails.balance": totalDeductedAmount,
+            },
+          },
+          { new: true },
+        );
+
+        // Optionally, log a transaction for admin income
+        await transactionModel.create({
+          userId: adminUser._id,
+          transactionType: "credit",
+          orderId: null,
+          amount: totalDeductedAmount,
+          category: "monthlyDeduction",
+          narration: "Monthly deduction collected from all users",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
       return res.status(200).json({
         success: true,
-        message: "Deducted successfully ",
+        message: "Deducted successfully and added to admin monthlyIncome",
         modifiedCount: result.modifiedCount,
+        totalDeductedAmount,
       });
     }
 

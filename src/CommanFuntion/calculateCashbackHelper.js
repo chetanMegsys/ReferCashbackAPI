@@ -1,6 +1,6 @@
-// const userModel = require("../models/userModel");
-// const businessModel = require("../models/businessModel");
-// const { isUserIdExists } = require("./commonQueries/commonQuerries");
+const userModel = require("../models/userModel");
+const businessModel = require("../models/businessModel");
+const { isUserIdExists } = require("./commonQueries/commonQuerries");
 
 // const calculateCashbackHelper = async ({
 //   userId,
@@ -28,7 +28,7 @@
 
 //   const cashbackPercent = business.discountPercentage || 0;
 //   const totalCashback = parseFloat(
-//     ((orderAmount * cashbackPercent) / 100)
+//     ((orderAmount * cashbackPercent) / 100).toFixed(2),
 //   );
 
 //   // const adminUsers = await userModel
@@ -48,15 +48,15 @@
 //   const buyer = await userModel.findById(userId);
 
 //   // 🔢 ENV percentages
-//   const customerPercent = parseFloat(process.env.CUSTOMER_PERCENTAGE);
-//   const directReferralPercent = parseFloat(process.env.REFERRER_PERCENTAGE);
-//   const rorPercent = parseFloat(process.env.ROR_PERCENTAGE);
-//   const levelPercent = parseFloat(process.env.LEVEL_PERCENTAGE);
-//   const irot1Percent = parseFloat(process.env.IROT1_PERCENTAGE);
-//   const irot2Percent = parseFloat(process.env.IROT2_PERCENTAGE);
-//   const shopkeeperPercent = parseFloat(process.env.TIUP_PERCENTAGE);
-//   const superAdminPercent = parseFloat(process.env.SUPERADMIN_PERCENTAGE);
-//   const adminPercent = parseFloat(process.env.ADMIN);
+//   const customerPercent = parseInt(process.env.CUSTOMER_PERCENTAGE);
+//   const directReferralPercent = parseInt(process.env.REFERRER_PERCENTAGE);
+//   const rorPercent = parseInt(process.env.ROR_PERCENTAGE);
+//   const levelPercent = parseInt(process.env.LEVEL_PERCENTAGE);
+//   const irot1Percent = parseInt(process.env.IROT1_PERCENTAGE);
+//   const irot2Percent = parseInt(process.env.IROT2_PERCENTAGE);
+//   const shopkeeperPercent = parseInt(process.env.TIUP_PERCENTAGE);
+//   const superAdminPercent = parseInt(process.env.SUPERADMIN_PERCENTAGE);
+//   // const adminPercent = parseInt(process.env.ADMIN);
 
 //   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
 
@@ -65,17 +65,18 @@
 //   // 🔁 Shopkeeper referral (TIUP)
 //   let refreshedShopkeeper =
 //     shopkeeper?.referalUser && (await isUserIdExists(shopkeeper.referalUser))
-//       ? await userModel.findById(shopkeeper.referalUser)
+//       ? await userModel.findOne({
+//           _id: shopkeeper.referalUser,
+//           status: "active", // only active users
+//         })
 //       : adminUsers;
 
 //   // 🚫 If buyer docs missing → all to admin (UNCHANGED LOGIC)
 //   if (!hasValidDocs) {
 //     const customerCashback = parseFloat(
-//       ((totalCashback * customerPercent) / 100)
+//       (totalCashback * customerPercent) / 100,
 //     );
-//     const tiupCashback = parseFloat(
-//       ((totalCashback * shopkeeperPercent) / 100)
-//     );
+//     const tiupCashback = parseFloat((totalCashback * shopkeeperPercent) / 100);
 
 //     return {
 //       cashbackReceivers: {
@@ -119,33 +120,72 @@
 //   }
 
 //   // 🔗 Direct referrer
-//   const directReferrer =
-//     buyer.referalUser && (await isUserIdExists(buyer.referalUser))
-//       ? await userModel
-//           .findById(buyer.referalUser)
-//           .select("firstName lastName mobile")
-//       : adminUsers;
+//   let directReferrer = { ...adminUsers, _id: adminUsers?.userId };
 
+//   if (buyer.referalUser && (await isUserIdExists(buyer.referalUser))) {
+//     const refUser = await userModel
+//       .findOne({
+//         _id: buyer.referalUser,
+//         status: "active", // only active users
+//       })
+//       .select(
+//         "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser",
+//       );
+
+//     const hasValidKyc =
+//       !!refUser?.aadhaarCardNumber && !!refUser?.rationCardNumber;
+
+//     if (hasValidKyc) {
+//       directReferrer = refUser;
+//     }
+//   }
 //   // ===========================
 //   // 🔼 LEVEL USERS (UPSTREAM)
 //   // ===========================
+
 //   const getUpstreamUsers = async (startUserId, maxLevels) => {
 //     const result = [];
-//     let current = await userModel.findById(startUserId).select("parentId");
+//     let current = await userModel
+//       .findOne({
+//         _id: startUserId,
+//         status: "active", // only active users
+//       })
+//       .select("parentId");
+
 //     let level = 0;
 
 //     while (current?.parentId && level < maxLevels) {
 //       if (!(await isUserIdExists(current.parentId))) break;
 
 //       const parent = await userModel
-//         .findById(current.parentId)
-//         .select("firstName lastName mobile parentId");
+//         .findOne({
+//           _id: current.parentId,
+//           status: "active", // only active users
+//         })
+//         .select(
+//           "firstName lastName mobile parentId aadhaarCardNumber rationCardNumber",
+//         );
+//       // 🔐 KYC CHECK
+//       const hasValidKyc =
+//         !!parent?.aadhaarCardNumber && !!parent?.rationCardNumber;
 
-//       result.push({
-//         userId: parent._id,
-//         name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
-//         mobile: parent.mobile,
-//       });
+//       // ❌ If KYC not valid → assign admin and STOP traversal
+//       if (!hasValidKyc) {
+//         result.push({
+//           userId: adminUsers.userId,
+//           name: `${adminUsers.firstName || ""} ${
+//             adminUsers.lastName || ""
+//           }`.trim(),
+//           mobile: adminUsers.mobile || null,
+//         });
+//       } else {
+//         // ✅ Valid upstream user
+//         result.push({
+//           userId: parent._id,
+//           name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
+//           mobile: parent.mobile,
+//         });
+//       }
 
 //       current = parent;
 //       level++;
@@ -165,28 +205,53 @@
 //       if (!ids.length || level >= maxLevels) return;
 
 //       const children = await userModel
-//         .find({ parentId: { $in: ids } })
-//         .select("firstName lastName mobile _id");
+//         .find({ parentId: { $in: ids }, status: "active" })
+//         .select(
+//           "firstName lastName mobile _id aadhaarCardNumber rationCardNumber",
+//         );
+
+//       const validChildIds = [];
 
 //       for (const child of children) {
-//         if (!visited.has(child._id.toString())) {
-//           visited.add(child._id.toString());
+//         const childId = child._id.toString();
+//         if (visited.has(childId)) continue;
+
+//         visited.add(childId);
+
+//         const hasValidKyc =
+//           !!child.aadhaarCardNumber && !!child.rationCardNumber;
+
+//         // ❌ Invalid KYC → Admin fallback
+//         if (!hasValidKyc) {
 //           users.push({
-//             userId: child._id,
-//             name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
-//             mobile: child.mobile,
+//             userId: adminUsers.userId,
+//             name: `${adminUsers.firstName || ""} ${
+//               adminUsers.lastName || ""
+//             }`.trim(),
+//             mobile: adminUsers.mobile || null,
 //           });
+//           continue; // 🚫 do not traverse this branch
 //         }
+
+//         // ✅ Valid child
+//         users.push({
+//           userId: child._id,
+//           name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
+//           mobile: child.mobile,
+//         });
+
+//         validChildIds.push(child._id);
 //       }
 
-//       await getChildren(
-//         children.map((c) => c._id),
-//         level + 1
-//       );
+//       // 🔽 Traverse only valid KYC children
+//       await getChildren(validChildIds, level + 1);
 //     };
 
+//     // 🔼 Upstream (already KYC-safe)
 //     const upUsers = await getUpstreamUsers(startUserId, maxLevels);
 //     users.push(...upUsers);
+
+//     // 🔽 Downstream
 //     await getChildren([startUserId]);
 
 //     return users;
@@ -201,20 +266,42 @@
 //     let count = 0;
 
 //     while (currentId && count < maxLevels) {
-//       const user = await userModel.findById(currentId).select("referalUser");
+//       const user = await userModel
+//         .findOne({
+//           _id: currentId,
+//           status: "active", // only active users
+//         })
+//         .select("referalUser");
 
 //       if (!user?.referalUser) break;
 //       if (!(await isUserIdExists(user.referalUser))) break;
 
 //       const ref = await userModel
-//         .findById(user.referalUser)
-//         .select("firstName lastName mobile");
+//         .findOne({
+//           _id: user.referalUser,
+//           status: "active", // only active users
+//         })
+//         .select("firstName lastName mobile aadhaarCardNumber rationCardNumber");
 
-//       chain.push({
-//         userId: ref._id,
-//         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
-//         mobile: ref.mobile,
-//       });
+//       const hasValidKyc = !!ref?.aadhaarCardNumber && !!ref?.rationCardNumber;
+
+//       if (!hasValidKyc) {
+//         // ❌ KYC missing → fallback to admin and stop the chain
+//         chain.push({
+//           userId: adminUsers.userId,
+//           name: `${adminUsers.firstName || ""} ${
+//             adminUsers.lastName || ""
+//           }`.trim(),
+//           mobile: adminUsers.mobile || null,
+//         });
+//       } else {
+//         // ✅ Valid referral
+//         chain.push({
+//           userId: ref._id,
+//           name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
+//           mobile: ref.mobile,
+//         });
+//       }
 
 //       currentId = user.referalUser;
 //       count++;
@@ -232,11 +319,11 @@
 //   // 💸 Distribution helper
 //   // ===========================
 //   const calcDistribution = (users, percent, maxLevels) => {
-//     const total = parseFloat(((totalCashback * percent) / 100));
-//     const perUser = users.length ? parseFloat((total / maxLevels)) : 0;
+//     const total = parseFloat((totalCashback * percent) / 100);
+//     const perUser = users.length ? parseFloat(total / maxLevels) : 0;
 
 //     const distributed = perUser * users.length;
-//     const remaining = parseFloat((total - distributed));
+//     const remaining = parseFloat(total - distributed);
 
 //     const result = users.map((u) => ({ ...u, cashback: perUser }));
 
@@ -255,24 +342,47 @@
 //   // 🔄 ROR
 //   // ===========================
 //   let rorReceiver = null;
+
 //   if (
 //     directReferrer?.referalUser &&
 //     (await isUserIdExists(directReferrer.referalUser))
 //   ) {
 //     const rorUser = await userModel
-//       .findById(directReferrer.referalUser)
-//       .select("firstName lastName mobile");
+//       .findOne({
+//         _id: directReferrer.referalUser,
+//         status: "active",
+//       })
+//       .select("firstName lastName mobile aadhaarCardNumber rationCardNumber");
 
-//     rorReceiver = {
-//       userId: rorUser._id,
-//       name: `${rorUser.firstName || ""} ${rorUser.lastName || ""}`.trim(),
-//       mobile: rorUser.mobile,
-//       cashback: parseFloat(((totalCashback * rorPercent) / 100)),
-//     };
+//     const hasValidKyc =
+//       !!rorUser?.aadhaarCardNumber && !!rorUser?.rationCardNumber;
+
+//     if (hasValidKyc) {
+//       // ✅ Valid referral
+//       rorReceiver = {
+//         userId: rorUser._id,
+//         name: `${rorUser.firstName || ""} ${rorUser.lastName || ""} `.trim(),
+//         mobile: rorUser.mobile,
+//         cashback: parseFloat((totalCashback * rorPercent) / 100),
+//       };
+//     } else {
+//       // ❌ KYC missing → fallback to Admin
+//       rorReceiver = {
+//         userId: adminUsers.userId,
+//         name: `${adminUsers.firstName || ""} ${
+//           adminUsers.lastName || ""
+//         }`.trim(),
+//         mobile: adminUsers.mobile || null,
+//         cashback: parseFloat((totalCashback * rorPercent) / 100),
+//       };
+//     }
 //   } else {
+//     // ❌ No referalUser → fallback to Admin
 //     rorReceiver = {
-//       ...adminUsers,
-//       cashback: parseFloat(((totalCashback * rorPercent) / 100)),
+//       userId: adminUsers.userId,
+//       name: `${adminUsers.firstName || ""} ${adminUsers.lastName || ""}`.trim(),
+//       mobile: adminUsers.mobile || null,
+//       cashback: parseFloat((totalCashback * rorPercent) / 100),
 //     };
 //   }
 
@@ -284,7 +394,7 @@
 //       customer: {
 //         userId: buyer._id,
 //         name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
-//         cashback: parseFloat(((totalCashback * customerPercent) / 100)),
+//         cashback: parseFloat((totalCashback * customerPercent) / 100),
 //       },
 //       referrer: directReferrer
 //         ? {
@@ -292,9 +402,7 @@
 //             name: `${directReferrer.firstName || ""} ${
 //               directReferrer.lastName || ""
 //             }`.trim(),
-//             cashback: parseFloat(
-//               ((totalCashback * directReferralPercent) / 100)
-//             ),
+//             cashback: parseFloat((totalCashback * directReferralPercent) / 100),
 //           }
 //         : null,
 //       shopkeeper: {
@@ -302,29 +410,25 @@
 //         name: `${refreshedShopkeeper.firstName || ""} ${
 //           refreshedShopkeeper.lastName || ""
 //         }`.trim(),
-//         cashback: parseFloat(
-//           ((totalCashback * shopkeeperPercent) / 100)
-//         ),
+//         cashback: parseFloat((totalCashback * shopkeeperPercent) / 100),
 //       },
 //       superadmin: [
 //         {
 //           ...adminUsers,
-//           cashback: parseFloat(
-//             ((totalCashback * superAdminPercent) / 100)
-//           ),
+//           cashback: parseFloat((totalCashback * superAdminPercent) / 100),
 //         },
 //       ],
-//       admin: [
-//         {
-//           ...adminUsers,
-//           cashback: parseFloat(((totalCashback * adminPercent) / 100)),
-//         },
-//       ],
+//       // admin: [
+//       //   {
+//       //     ...adminUsers,
+//       //     cashback: parseFloat((totalCashback * adminPercent) / 100),
+//       //   },
+//       // ],
 //       levels: levelDistribution,
 //       irot1: irot1Distribution,
 //       irot2: irot2Distribution,
 //       ror: {
-//         totalROR: parseFloat(((orderAmount * rorPercent) / 100)),
+//         totalROR: parseFloat((orderAmount * rorPercent) / 100),
 //         percent: rorPercent,
 //         receiver: rorReceiver,
 //       },
@@ -332,17 +436,11 @@
 //     },
 //     cashbackSummary: {
 //       totalCashback,
-//       customer: parseFloat(((totalCashback * customerPercent) / 100)),
-//       referrer: parseFloat(
-//         ((totalCashback * directReferralPercent) / 100)
-//       ),
-//       shopkeeper: parseFloat(
-//         ((totalCashback * shopkeeperPercent) / 100)
-//       ),
-//       superadmin: parseFloat(
-//         ((totalCashback * superAdminPercent) / 100).toFixed(2)
-//       ),
-//       admin: parseFloat(((totalCashback * adminPercent) / 100).toFixed(2)),
+//       customer: parseFloat((totalCashback * customerPercent) / 100),
+//       referrer: parseFloat((totalCashback * directReferralPercent) / 100),
+//       shopkeeper: parseFloat((totalCashback * shopkeeperPercent) / 100),
+//       superadmin: parseFloat((totalCashback * superAdminPercent) / 100),
+//       // admin: parseFloat((totalCashback * adminPercent) / 100),
 //       levels: levelDistribution.reduce((a, c) => a + c.cashback, 0),
 //       irot1: irot1Distribution.reduce((a, c) => a + c.cashback, 0),
 //       irot2: irot2Distribution.reduce((a, c) => a + c.cashback, 0),
@@ -350,12 +448,6 @@
 //     },
 //   };
 // };
-
-// module.exports = calculateCashbackHelper;
-
-const userModel = require("../models/userModel");
-const businessModel = require("../models/businessModel");
-const { isUserIdExists } = require("./commonQueries/commonQuerries");
 
 const calculateCashbackHelper = async ({
   userId,
@@ -366,15 +458,11 @@ const calculateCashbackHelper = async ({
     return "Missing required fields for cashback calculation";
   }
 
-  const isUser = await isUserIdExists(userId);
+  const isUserExists = async (id) =>
+    !!(await userModel.exists({ _id: id, status: "active" }));
 
-  if (!(await isUserIdExists(userId))) {
-    return "Buyer does not exist";
-  }
-
-  if (!(await isUserIdExists(shopkeeperId))) {
-    return "Shopkeeper does not exist";
-  }
+  if (!(await isUserExists(userId))) return "Buyer does not exist";
+  if (!(await isUserExists(shopkeeperId))) return "Shopkeeper does not exist";
 
   const business = await businessModel
     .findOne({ shopkeeperId })
@@ -383,26 +471,25 @@ const calculateCashbackHelper = async ({
 
   const cashbackPercent = business.discountPercentage || 0;
   const totalCashback = parseFloat(
-    ((orderAmount * cashbackPercent) / 100).toFixed(2)
+    ((orderAmount * cashbackPercent) / 100).toFixed(2),
   );
 
-  // const adminUsers = await userModel
-  //   .findOne({ role: "admin", status: "active" })
-  //   .select("_id firstName lastName mobile");
-  const result = await userModel
+  // Admin user
+  const adminResult = await userModel
     .findOne({ role: "admin", status: "active" })
     .select("_id firstName lastName mobile");
 
   const adminUsers = {
-    userId: result._id,
-    firstName: result.firstName,
-    lastName: result.lastName,
-    mobile: result.mobile,
+    userId: adminResult._id,
+    firstName: adminResult.firstName,
+    lastName: adminResult.lastName,
+    mobile: adminResult.mobile,
   };
 
   const buyer = await userModel.findById(userId);
+  const shopkeeper = await userModel.findById(shopkeeperId);
 
-  // 🔢 ENV percentages
+  // ENV percentages
   const customerPercent = parseInt(process.env.CUSTOMER_PERCENTAGE);
   const directReferralPercent = parseInt(process.env.REFERRER_PERCENTAGE);
   const rorPercent = parseInt(process.env.ROR_PERCENTAGE);
@@ -411,25 +498,22 @@ const calculateCashbackHelper = async ({
   const irot2Percent = parseInt(process.env.IROT2_PERCENTAGE);
   const shopkeeperPercent = parseInt(process.env.TIUP_PERCENTAGE);
   const superAdminPercent = parseInt(process.env.SUPERADMIN_PERCENTAGE);
-  const adminPercent = parseInt(process.env.ADMIN);
 
   const hasValidDocs = buyer.aadhaarCardNumber && buyer.rationCardNumber;
 
-  const shopkeeper = await userModel.findById(shopkeeperId);
-
-  // 🔁 Shopkeeper referral (TIUP)
+  // Shopkeeper referral (TIUP)
   let refreshedShopkeeper =
-    shopkeeper?.referalUser && (await isUserIdExists(shopkeeper.referalUser))
+    shopkeeper?.referalUser && (await isUserExists(shopkeeper.referalUser))
       ? await userModel.findOne({
           _id: shopkeeper.referalUser,
-          status: "active", // only active users
+          status: "active",
         })
       : adminUsers;
 
-  // 🚫 If buyer docs missing → all to admin (UNCHANGED LOGIC)
+  // 🚫 If buyer docs missing → all to admin
   if (!hasValidDocs) {
     const customerCashback = parseFloat(
-      (totalCashback * customerPercent) / 100
+      (totalCashback * customerPercent) / 100,
     );
     const tiupCashback = parseFloat((totalCashback * shopkeeperPercent) / 100);
 
@@ -443,9 +527,7 @@ const calculateCashbackHelper = async ({
         referrer: null,
         shopkeeper: {
           userId: refreshedShopkeeper._id,
-          name: `${refreshedShopkeeper.firstName || ""} ${
-            refreshedShopkeeper.lastName || ""
-          }`.trim(),
+          name: `${refreshedShopkeeper.firstName || ""} ${refreshedShopkeeper.lastName || ""}`.trim(),
           cashback: tiupCashback,
         },
         superadmin: [
@@ -471,82 +553,81 @@ const calculateCashbackHelper = async ({
         irot2: 0,
         ror: 0,
       },
+      lapIncome: {},
     };
   }
 
-  // 🔗 Direct referrer
+  // Direct referrer
   let directReferrer = { ...adminUsers, _id: adminUsers?.userId };
 
-  if (buyer.referalUser && (await isUserIdExists(buyer.referalUser))) {
+  if (buyer.referalUser && (await isUserExists(buyer.referalUser))) {
     const refUser = await userModel
-      .findOne({
-        _id: buyer.referalUser,
-        status: "active", // only active users
-      })
+      .findOne({ _id: buyer.referalUser, status: "active" })
       .select(
-        "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser"
+        "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser",
       );
 
     const hasValidKyc =
       !!refUser?.aadhaarCardNumber && !!refUser?.rationCardNumber;
-
-    if (hasValidKyc) {
-      directReferrer = refUser;
-    }
+    if (hasValidKyc) directReferrer = refUser;
   }
+
   // ===========================
   // 🔼 LEVEL USERS (UPSTREAM)
   // ===========================
-
   const getUpstreamUsers = async (startUserId, maxLevels) => {
     const result = [];
+    const lapIncome = [];
     let current = await userModel
-      .findOne({
-        _id: startUserId,
-        status: "active", // only active users
-      })
+      .findOne({ _id: startUserId, status: "active" })
       .select("parentId");
-
     let level = 0;
 
     while (current?.parentId && level < maxLevels) {
-      if (!(await isUserIdExists(current.parentId))) break;
+      if (!(await isUserExists(current.parentId))) break;
 
       const parent = await userModel
-        .findOne({
-          _id: current.parentId,
-          status: "active", // only active users
-        })
+        .findOne({ _id: current.parentId, status: "active" })
         .select(
-          "firstName lastName mobile parentId aadhaarCardNumber rationCardNumber"
+          "firstName lastName mobile parentId aadhaarCardNumber rationCardNumber",
         );
-      // 🔐 KYC CHECK
+
+      if (!parent) break;
+
       const hasValidKyc =
         !!parent?.aadhaarCardNumber && !!parent?.rationCardNumber;
 
-      // ❌ If KYC not valid → assign admin and STOP traversal
       if (!hasValidKyc) {
-        result.push({
-          userId: adminUsers.userId,
-          name: `${adminUsers.firstName || ""} ${
-            adminUsers.lastName || ""
-          }`.trim(),
-          mobile: adminUsers.mobile || null,
-        });
-      } else {
-        // ✅ Valid upstream user
-        result.push({
-          userId: parent._id,
+        lapIncome.push({
+          skippedUserId: parent._id,
+          level,
           name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
-          mobile: parent.mobile,
         });
+        // move to next parent
+        current = parent;
+        level++;
+        continue;
       }
+
+      result.push({
+        userId: parent._id,
+        name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
+        mobile: parent.mobile,
+      });
 
       current = parent;
       level++;
     }
 
-    return result;
+    // redistribute skipped lap income to valid users if any
+    if (lapIncome.length && result.length) {
+      lapIncome.forEach(() => result.push({ redistribute: true }));
+    } else if (lapIncome.length && result.length === 0) {
+      // all lap income goes to admin
+      result.push({ ...adminUsers });
+    }
+
+    return { result, lapIncome };
   };
 
   // ===========================
@@ -555,6 +636,7 @@ const calculateCashbackHelper = async ({
   const getUpAndDownUsers = async (startUserId, maxLevels) => {
     const visited = new Set();
     const users = [];
+    const lapIncome = [];
 
     const getChildren = async (ids, level = 0) => {
       if (!ids.length || level >= maxLevels) return;
@@ -562,7 +644,7 @@ const calculateCashbackHelper = async ({
       const children = await userModel
         .find({ parentId: { $in: ids }, status: "active" })
         .select(
-          "firstName lastName mobile _id aadhaarCardNumber rationCardNumber"
+          "firstName lastName mobile _id aadhaarCardNumber rationCardNumber",
         );
 
       const validChildIds = [];
@@ -570,25 +652,26 @@ const calculateCashbackHelper = async ({
       for (const child of children) {
         const childId = child._id.toString();
         if (visited.has(childId)) continue;
-
         visited.add(childId);
 
         const hasValidKyc =
           !!child.aadhaarCardNumber && !!child.rationCardNumber;
-
-        // ❌ Invalid KYC → Admin fallback
         if (!hasValidKyc) {
-          users.push({
-            userId: adminUsers.userId,
-            name: `${adminUsers.firstName || ""} ${
-              adminUsers.lastName || ""
-            }`.trim(),
-            mobile: adminUsers.mobile || null,
+          lapIncome.push({
+            skippedUserId: child._id,
+            level,
+            name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
           });
-          continue; // 🚫 do not traverse this branch
+          const grandChildren = await userModel.find({
+            parentId: child._id,
+            status: "active",
+          });
+          if (grandChildren.length)
+            validChildIds.push(...grandChildren.map((g) => g._id));
+          else users.push({ ...adminUsers });
+          continue;
         }
 
-        // ✅ Valid child
         users.push({
           userId: child._id,
           name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
@@ -598,18 +681,19 @@ const calculateCashbackHelper = async ({
         validChildIds.push(child._id);
       }
 
-      // 🔽 Traverse only valid KYC children
       await getChildren(validChildIds, level + 1);
     };
 
-    // 🔼 Upstream (already KYC-safe)
-    const upUsers = await getUpstreamUsers(startUserId, maxLevels);
+    const { result: upUsers, lapIncome: upLap } = await getUpstreamUsers(
+      startUserId,
+      maxLevels,
+    );
     users.push(...upUsers);
+    lapIncome.push(...upLap);
 
-    // 🔽 Downstream
     await getChildren([startUserId]);
 
-    return users;
+    return { users, lapIncome };
   };
 
   // ===========================
@@ -617,129 +701,119 @@ const calculateCashbackHelper = async ({
   // ===========================
   const getDirectReferralChain = async (startUserId, maxLevels) => {
     const chain = [];
+    const lapIncome = [];
     let currentId = startUserId;
     let count = 0;
 
     while (currentId && count < maxLevels) {
       const user = await userModel
-        .findOne({
-          _id: currentId,
-          status: "active", // only active users
-        })
+        .findOne({ _id: currentId, status: "active" })
         .select("referalUser");
-
-      if (!user?.referalUser) break;
-      if (!(await isUserIdExists(user.referalUser))) break;
+      if (!user?.referalUser || !(await isUserExists(user.referalUser))) break;
 
       const ref = await userModel
-        .findOne({
-          _id: user.referalUser,
-          status: "active", // only active users
-        })
-        .select("firstName lastName mobile aadhaarCardNumber rationCardNumber");
+        .findOne({ _id: user.referalUser, status: "active" })
+        .select(
+          "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser",
+        );
 
       const hasValidKyc = !!ref?.aadhaarCardNumber && !!ref?.rationCardNumber;
 
       if (!hasValidKyc) {
-        // ❌ KYC missing → fallback to admin and stop the chain
-        chain.push({
-          userId: adminUsers.userId,
-          name: `${adminUsers.firstName || ""} ${
-            adminUsers.lastName || ""
-          }`.trim(),
-          mobile: adminUsers.mobile || null,
-        });
-      } else {
-        // ✅ Valid referral
-        chain.push({
-          userId: ref._id,
+        lapIncome.push({
+          skippedUserId: ref._id,
+          level: count,
           name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
-          mobile: ref.mobile,
         });
+        if (ref?.referalUser && (await isUserExists(ref.referalUser))) {
+          currentId = ref.referalUser;
+          count++;
+          continue;
+        } else {
+          chain.push({ ...adminUsers });
+          break;
+        }
       }
+
+      chain.push({
+        userId: ref._id,
+        name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
+        mobile: ref.mobile,
+      });
 
       currentId = user.referalUser;
       count++;
     }
 
-    return chain;
+    return { chain, lapIncome };
   };
-
-  // 🧮 Fetch chains
-  const levelUsers = await getUpstreamUsers(userId, 10);
-  const irot2Users = await getUpAndDownUsers(userId, 20);
-  const irot1Users = await getDirectReferralChain(userId, 10);
 
   // ===========================
   // 💸 Distribution helper
   // ===========================
   const calcDistribution = (users, percent, maxLevels) => {
     const total = parseFloat((totalCashback * percent) / 100);
-    const perUser = users.length ? parseFloat(total / maxLevels) : 0;
+    const validUsers = users.filter((u) => !u.redistribute);
+    const redistributeCount = users.filter((u) => u.redistribute).length;
 
+    const perUser = validUsers.length
+      ? parseFloat(total / (validUsers.length + redistributeCount))
+      : 0;
     const distributed = perUser * users.length;
     const remaining = parseFloat(total - distributed);
 
     const result = users.map((u) => ({ ...u, cashback: perUser }));
 
-    if (remaining > 0) {
-      result.push({ ...adminUsers, cashback: remaining });
-    }
+    if (remaining > 0) result.push({ ...adminUsers, cashback: remaining });
 
     return result;
   };
 
-  const levelDistribution = calcDistribution(levelUsers, levelPercent, 10);
-  const irot1Distribution = calcDistribution(irot1Users, irot1Percent, 10);
-  const irot2Distribution = calcDistribution(irot2Users, irot2Percent, 20);
+  // ===========================
+  // 🧮 Fetch all chains
+  // ===========================
+  const { result: levelUsers, lapIncome: levelLap } = await getUpstreamUsers(
+    userId,
+    10,
+  );
+  const { users: irot2Users, lapIncome: irot2Lap } = await getUpAndDownUsers(
+    userId,
+    20,
+  );
+  const { chain: irot1Users, lapIncome: irot1Lap } =
+    await getDirectReferralChain(userId, 10);
 
   // ===========================
   // 🔄 ROR
   // ===========================
   let rorReceiver = null;
-
   if (
     directReferrer?.referalUser &&
-    (await isUserIdExists(directReferrer.referalUser))
+    (await isUserExists(directReferrer.referalUser))
   ) {
     const rorUser = await userModel
-      .findOne({
-        _id: directReferrer.referalUser,
-        status: "active",
-      })
+      .findOne({ _id: directReferrer.referalUser, status: "active" })
       .select("firstName lastName mobile aadhaarCardNumber rationCardNumber");
 
     const hasValidKyc =
       !!rorUser?.aadhaarCardNumber && !!rorUser?.rationCardNumber;
 
-    if (hasValidKyc) {
-      // ✅ Valid referral
-      rorReceiver = {
-        userId: rorUser._id,
-        name: `${rorUser.firstName || ""} ${rorUser.lastName || ""} `.trim(),
-        mobile: rorUser.mobile,
-        cashback: parseFloat((totalCashback * rorPercent) / 100),
-      };
-    } else {
-      // ❌ KYC missing → fallback to Admin
-      rorReceiver = {
-        userId: adminUsers.userId,
-        name: `${adminUsers.firstName || ""} ${
-          adminUsers.lastName || ""
-        }`.trim(),
-        mobile: adminUsers.mobile || null,
-        cashback: parseFloat((totalCashback * rorPercent) / 100),
-      };
-    }
-  } else {
-    // ❌ No referalUser → fallback to Admin
+    rorReceiver = hasValidKyc
+      ? {
+          userId: rorUser._id,
+          name: `${rorUser.firstName || ""} ${rorUser.lastName || ""}`.trim(),
+          mobile: rorUser.mobile,
+          cashback: parseFloat((totalCashback * rorPercent) / 100),
+        }
+      : {
+          ...adminUsers,
+          cashback: parseFloat((totalCashback * rorPercent) / 100),
+        };
+  } else
     rorReceiver = {
-      userId: adminUsers.userId,
-      name: `${adminUsers.firstName || ""} ${adminUsers.lastName || ""}`.trim(),
-      mobile: adminUsers.mobile || null,
+      ...adminUsers,
       cashback: parseFloat((totalCashback * rorPercent) / 100),
     };
-  }
 
   // ===========================
   // ✅ FINAL RESPONSE
@@ -751,20 +825,14 @@ const calculateCashbackHelper = async ({
         name: `${buyer.firstName || ""} ${buyer.lastName || ""}`.trim(),
         cashback: parseFloat((totalCashback * customerPercent) / 100),
       },
-      referrer: directReferrer
-        ? {
-            userId: directReferrer._id,
-            name: `${directReferrer.firstName || ""} ${
-              directReferrer.lastName || ""
-            }`.trim(),
-            cashback: parseFloat((totalCashback * directReferralPercent) / 100),
-          }
-        : null,
+      referrer: {
+        userId: directReferrer._id,
+        name: `${directReferrer.firstName || ""} ${directReferrer.lastName || ""}`.trim(),
+        cashback: parseFloat((totalCashback * directReferralPercent) / 100),
+      },
       shopkeeper: {
         userId: refreshedShopkeeper._id,
-        name: `${refreshedShopkeeper.firstName || ""} ${
-          refreshedShopkeeper.lastName || ""
-        }`.trim(),
+        name: `${refreshedShopkeeper.firstName || ""} ${refreshedShopkeeper.lastName || ""}`.trim(),
         cashback: parseFloat((totalCashback * shopkeeperPercent) / 100),
       },
       superadmin: [
@@ -773,15 +841,9 @@ const calculateCashbackHelper = async ({
           cashback: parseFloat((totalCashback * superAdminPercent) / 100),
         },
       ],
-      admin: [
-        {
-          ...adminUsers,
-          cashback: parseFloat((totalCashback * adminPercent) / 100),
-        },
-      ],
-      levels: levelDistribution,
-      irot1: irot1Distribution,
-      irot2: irot2Distribution,
+      levels: calcDistribution(levelUsers, levelPercent, 10),
+      irot1: calcDistribution(irot1Users, irot1Percent, 10),
+      irot2: calcDistribution(irot2Users, irot2Percent, 20),
       ror: {
         totalROR: parseFloat((orderAmount * rorPercent) / 100),
         percent: rorPercent,
@@ -795,12 +857,16 @@ const calculateCashbackHelper = async ({
       referrer: parseFloat((totalCashback * directReferralPercent) / 100),
       shopkeeper: parseFloat((totalCashback * shopkeeperPercent) / 100),
       superadmin: parseFloat((totalCashback * superAdminPercent) / 100),
-      admin: parseFloat((totalCashback * adminPercent) / 100),
-      levels: levelDistribution.reduce((a, c) => a + c.cashback, 0),
-      irot1: irot1Distribution.reduce((a, c) => a + c.cashback, 0),
-      irot2: irot2Distribution.reduce((a, c) => a + c.cashback, 0),
+      levels: levelUsers.reduce((a, c) => a + (c.cashback || 0), 0),
+      irot1: irot1Users.reduce((a, c) => a + (c.cashback || 0), 0),
+      irot2: irot2Users.reduce((a, c) => a + (c.cashback || 0), 0),
       ror: rorReceiver?.cashback || 0,
     },
+    lapIncome: [
+      ...levelLap.map((item) => ({ ...item, chain: "level" })),
+      ...irot1Lap.map((item) => ({ ...item, chain: "irot1" })),
+      ...irot2Lap.map((item) => ({ ...item, chain: "irot2" })),
+    ],
   };
 };
 
