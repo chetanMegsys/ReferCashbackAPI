@@ -8,8 +8,8 @@ const userModel = require("../models/userModel"); // adjust path
  */
 const updateLapIncome = async (userId, amount) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      throw new Error("Invalid userId");
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId) || amount <= 0) {
+      return null;
     }
 
     const updatedUser = await userModel.findByIdAndUpdate(

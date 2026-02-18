@@ -578,18 +578,18 @@ const calculateCashbackHelper = async ({
   const getUpstreamUsers = async (startUserId, maxLevels) => {
     const result = [];
     const lapIncome = [];
+
     let current = await userModel
       .findOne({ _id: startUserId, status: "active" })
       .select("parentId");
+
     let level = 0;
 
     while (current?.parentId && level < maxLevels) {
-      if (!(await isUserExists(current.parentId))) break;
-
       const parent = await userModel
         .findOne({ _id: current.parentId, status: "active" })
         .select(
-          "firstName lastName mobile parentId aadhaarCardNumber rationCardNumber",
+          "firstName lastName mobile parentId aadhaarCardNumber rationCardNumber levelId",
         );
 
       if (!parent) break;
@@ -603,7 +603,7 @@ const calculateCashbackHelper = async ({
           level,
           name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
         });
-        // move to next parent
+
         current = parent;
         level++;
         continue;
@@ -613,17 +613,37 @@ const calculateCashbackHelper = async ({
         userId: parent._id,
         name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
         mobile: parent.mobile,
+        level: parent.levelId,
       });
 
       current = parent;
       level++;
     }
 
-    // redistribute skipped lap income to valid users if any
+    // ================================
+    // 🔥 NEW FIX: Remaining Levels → Admin
+    // ================================
+    const remainingLevels = maxLevels - level;
+
+    if (remainingLevels > 0) {
+      for (let i = 0; i < remainingLevels; i++) {
+        // lapIncome.push({
+        //   skippedUserId: null,
+        //   level: level + i,
+        //   name: "No User (Level Missing)",
+        // });
+
+        // mark for redistribution
+        result.push({ redistribute: true });
+      }
+    }
+
+    // ================================
+    // Redistribute logic
+    // ================================
     if (lapIncome.length && result.length) {
-      lapIncome.forEach(() => result.push({ redistribute: true }));
+      // already handled via redistribute markers
     } else if (lapIncome.length && result.length === 0) {
-      // all lap income goes to admin
       result.push({ ...adminUsers });
     }
 
@@ -644,7 +664,7 @@ const calculateCashbackHelper = async ({
       const children = await userModel
         .find({ parentId: { $in: ids }, status: "active" })
         .select(
-          "firstName lastName mobile _id aadhaarCardNumber rationCardNumber",
+          "firstName lastName mobile _id aadhaarCardNumber rationCardNumber levelId",
         );
 
       const validChildIds = [];
@@ -676,6 +696,7 @@ const calculateCashbackHelper = async ({
           userId: child._id,
           name: `${child.firstName || ""} ${child.lastName || ""}`.trim(),
           mobile: child.mobile,
+          level: child.levelId,
         });
 
         validChildIds.push(child._id);
@@ -714,7 +735,7 @@ const calculateCashbackHelper = async ({
       const ref = await userModel
         .findOne({ _id: user.referalUser, status: "active" })
         .select(
-          "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser",
+          "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser levelId",
         );
 
       const hasValidKyc = !!ref?.aadhaarCardNumber && !!ref?.rationCardNumber;
@@ -739,6 +760,7 @@ const calculateCashbackHelper = async ({
         userId: ref._id,
         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         mobile: ref.mobile,
+        level: ref.levelId,
       });
 
       currentId = user.referalUser;
@@ -753,20 +775,37 @@ const calculateCashbackHelper = async ({
   // ===========================
   const calcDistribution = (users, percent, maxLevels) => {
     const total = parseFloat((totalCashback * percent) / 100);
-    const validUsers = users.filter((u) => !u.redistribute);
-    const redistributeCount = users.filter((u) => u.redistribute).length;
 
-    const perUser = validUsers.length
-      ? parseFloat(total / (validUsers.length + redistributeCount))
-      : 0;
-    const distributed = perUser * users.length;
+    const validUsers = users.filter((u) => !u.redistribute);
+    const redistributeUsers = users.filter((u) => u.redistribute);
+
+    const perUser = validUsers.length ? parseFloat(total / users.length) : 0;
+
+    let adminExtra = 0;
+
+    const result = users.map((u) => {
+      if (u.redistribute) {
+        // ✅ send this amount to admin
+        adminExtra += u.cashback;
+        return { ...u, cashback: 0 };
+      }
+
+      return { ...u, cashback: perUser };
+    });
+
+    const distributed = perUser * validUsers.length;
     const remaining = parseFloat(total - distributed);
 
-    const result = users.map((u) => ({ ...u, cashback: perUser }));
+    const finalAdminAmount = parseFloat(adminExtra || 0 + remaining);
 
-    if (remaining > 0) result.push({ ...adminUsers, cashback: remaining });
+    if (finalAdminAmount > 0) {
+      result.push({ ...adminUsers, cashback: finalAdminAmount });
+    }
 
-    return result;
+    return {
+      distributedUsers: result,
+      perLevelAmount: total / maxLevels,
+    };
   };
 
   // ===========================
@@ -776,12 +815,28 @@ const calculateCashbackHelper = async ({
     userId,
     10,
   );
-  const { users: irot2Users, lapIncome: irot2Lap } = await getUpAndDownUsers(
+
+  const { result: irot2Users, lapIncome: irot2Lap } = await getUpstreamUsers(
     userId,
     20,
   );
   const { chain: irot1Users, lapIncome: irot1Lap } =
     await getDirectReferralChain(userId, 10);
+
+  const {
+    distributedUsers: levelCashbackusers,
+    perLevelAmount: levelPerAmount,
+  } = calcDistribution(levelUsers, levelPercent, 10);
+
+  const {
+    distributedUsers: irot1Cashbackusers,
+    perLevelAmount: irot1PerAmount,
+  } = calcDistribution(irot1Users, irot1Percent, 10);
+
+  const {
+    distributedUsers: irot2Cashbackusers,
+    perLevelAmount: irot2PerAmount,
+  } = calcDistribution(irot2Users, irot2Percent, 20);
 
   // ===========================
   // 🔄 ROR
@@ -841,9 +896,9 @@ const calculateCashbackHelper = async ({
           cashback: parseFloat((totalCashback * superAdminPercent) / 100),
         },
       ],
-      levels: calcDistribution(levelUsers, levelPercent, 10),
-      irot1: calcDistribution(irot1Users, irot1Percent, 10),
-      irot2: calcDistribution(irot2Users, irot2Percent, 20),
+      levels: levelCashbackusers,
+      irot1: irot1Cashbackusers,
+      irot2: irot2Cashbackusers,
       ror: {
         totalROR: parseFloat((orderAmount * rorPercent) / 100),
         percent: rorPercent,
@@ -857,15 +912,27 @@ const calculateCashbackHelper = async ({
       referrer: parseFloat((totalCashback * directReferralPercent) / 100),
       shopkeeper: parseFloat((totalCashback * shopkeeperPercent) / 100),
       superadmin: parseFloat((totalCashback * superAdminPercent) / 100),
-      levels: levelUsers.reduce((a, c) => a + (c.cashback || 0), 0),
-      irot1: irot1Users.reduce((a, c) => a + (c.cashback || 0), 0),
-      irot2: irot2Users.reduce((a, c) => a + (c.cashback || 0), 0),
+      levels: levelCashbackusers.reduce((a, c) => a + (c.cashback || 0), 0),
+      irot1: irot1Cashbackusers.reduce((a, c) => a + (c.cashback || 0), 0),
+      irot2: irot2Cashbackusers.reduce((a, c) => a + (c.cashback || 0), 0),
       ror: rorReceiver?.cashback || 0,
     },
     lapIncome: [
-      ...levelLap.map((item) => ({ ...item, chain: "level" })),
-      ...irot1Lap.map((item) => ({ ...item, chain: "irot1" })),
-      ...irot2Lap.map((item) => ({ ...item, chain: "irot2" })),
+      ...levelLap.map((item) => ({
+        ...item,
+        chain: "level",
+        amount: levelPerAmount,
+      })),
+      ...irot1Lap.map((item) => ({
+        ...item,
+        chain: "irot1",
+        amount: irot1PerAmount,
+      })),
+      ...irot2Lap.map((item) => ({
+        ...item,
+        chain: "irot2",
+        amount: irot2PerAmount,
+      })),
     ],
   };
 };

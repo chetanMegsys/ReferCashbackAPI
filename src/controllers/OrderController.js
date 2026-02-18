@@ -574,7 +574,10 @@ const acceptOrRejectOrder = async (req, res) => {
       for (const entry of lapIncome) {
         if (!entry || !entry.skippedUserId) continue;
 
-        await updateLapIncome(entry.skippedUserId, entry.amount || 0);
+        await updateLapIncome(
+          entry?.skippedUserId ? entry.skippedUserId : null,
+          entry?.amount ? entry.amount : 0,
+        );
       }
 
       await order.save();
@@ -1029,8 +1032,6 @@ const calculateCashback = async (req, res) => {
     }
     return res.status(200).json(result);
   } catch (err) {
-    console.log(err);
-
     return res.status(500).json({ message: "Server error" });
   }
 };
