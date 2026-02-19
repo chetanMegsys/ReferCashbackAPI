@@ -575,7 +575,7 @@ const calculateCashbackHelper = async ({
   // ===========================
   // 🔼 LEVEL USERS (UPSTREAM)
   // ===========================
-  const getUpstreamUsers = async (startUserId, maxLevels) => {
+  const getUpstreamUsers = async (startUserId, maxLevel) => {
     const result = [];
     const lapIncome = [];
 
@@ -585,7 +585,7 @@ const calculateCashbackHelper = async ({
 
     let level = 0;
 
-    while (current?.parentId && level < maxLevels) {
+    while (current?.parentId && result.length < maxLevel) {
       const parent = await userModel
         .findOne({ _id: current.parentId, status: "active" })
         .select(
@@ -600,51 +600,35 @@ const calculateCashbackHelper = async ({
       if (!hasValidKyc) {
         lapIncome.push({
           skippedUserId: parent._id,
-          level,
           name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
         });
 
+        // just move upward
         current = parent;
-        level++;
         continue;
       }
 
+      // ✅ Only valid users count in level
       result.push({
         userId: parent._id,
         name: `${parent.firstName || ""} ${parent.lastName || ""}`.trim(),
         mobile: parent.mobile,
-        level: parent.levelId,
+        level: level + 1,
       });
 
       current = parent;
       level++;
     }
 
-    // ================================
-    // 🔥 NEW FIX: Remaining Levels → Admin
-    // ================================
-    const remainingLevels = maxLevels - level;
+    // ============================
+    // If hierarchy finished
+    // ============================
+    if (result.length < maxLevel) {
+      const remaining = maxLevel - result.length;
 
-    if (remainingLevels > 0) {
-      for (let i = 0; i < remainingLevels; i++) {
-        // lapIncome.push({
-        //   skippedUserId: null,
-        //   level: level + i,
-        //   name: "No User (Level Missing)",
-        // });
-
-        // mark for redistribution
-        result.push({ redistribute: true });
+      for (let i = 0; i < remaining; i++) {
+        result.push({ ...adminUsers });
       }
-    }
-
-    // ================================
-    // Redistribute logic
-    // ================================
-    if (lapIncome.length && result.length) {
-      // already handled via redistribute markers
-    } else if (lapIncome.length && result.length === 0) {
-      result.push({ ...adminUsers });
     }
 
     return { result, lapIncome };
@@ -723,14 +707,15 @@ const calculateCashbackHelper = async ({
   const getDirectReferralChain = async (startUserId, maxLevels) => {
     const chain = [];
     const lapIncome = [];
-    let currentId = startUserId;
-    let count = 0;
 
-    while (currentId && count < maxLevels) {
+    let currentId = startUserId;
+
+    while (currentId && chain.length < maxLevels) {
       const user = await userModel
         .findOne({ _id: currentId, status: "active" })
         .select("referalUser");
-      if (!user?.referalUser || !(await isUserExists(user.referalUser))) break;
+
+      if (!user?.referalUser) break;
 
       const ref = await userModel
         .findOne({ _id: user.referalUser, status: "active" })
@@ -738,33 +723,40 @@ const calculateCashbackHelper = async ({
           "firstName lastName mobile aadhaarCardNumber rationCardNumber referalUser levelId",
         );
 
+      if (!ref) break;
+
       const hasValidKyc = !!ref?.aadhaarCardNumber && !!ref?.rationCardNumber;
 
+      // ❌ If KYC invalid → push to lapIncome and move forward
       if (!hasValidKyc) {
         lapIncome.push({
           skippedUserId: ref._id,
-          level: count,
           name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         });
-        if (ref?.referalUser && (await isUserExists(ref.referalUser))) {
-          currentId = ref.referalUser;
-          count++;
-          continue;
-        } else {
-          chain.push({ ...adminUsers });
-          break;
-        }
+
+        // Move to next referral (do NOT increase level)
+        currentId = ref.referalUser;
+        continue;
       }
 
+      // ✅ Valid user → count level
       chain.push({
         userId: ref._id,
         name: `${ref.firstName || ""} ${ref.lastName || ""}`.trim(),
         mobile: ref.mobile,
-        level: ref.levelId,
+        level: chain.length + 1,
       });
 
-      currentId = user.referalUser;
-      count++;
+      currentId = ref.referalUser;
+    }
+
+    // 🔥 If referral chain ended before maxLevels
+    if (chain.length < maxLevels) {
+      const remaining = maxLevels - chain.length;
+
+      for (let i = 0; i < remaining; i++) {
+        chain.push({ ...adminUsers });
+      }
     }
 
     return { chain, lapIncome };

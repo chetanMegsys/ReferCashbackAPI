@@ -77,7 +77,9 @@ const getWalletDetails = async (req, res) => {
     return res
       .status(200)
       .send(
-        result.length > 0 ? result[0] : { balance: 0, cashback: 0, referral: 0 }
+        result.length > 0
+          ? result[0]
+          : { balance: 0, cashback: 0, referral: 0 },
       );
   } catch (error) {
     return res.status(500).send({ msg: error.message });

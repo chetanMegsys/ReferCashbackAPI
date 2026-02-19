@@ -176,26 +176,6 @@ const createOrder = async (req, res) => {
   }
 };
 
-// const updateUserWallet = async (
-//   userId,
-//   amount,
-//   type = "referral",
-//   alsoAddBalance = false,
-// ) => {
-//   if (!userId || !amount || amount <= 0) return;
-
-//   const user = await userModel.findById(userId);
-//   if (!user) return;
-
-//   const updateObj = {};
-//   if (type === "customer") updateObj["walletDetails.cashbackPoints"] = amount;
-//   else updateObj["walletDetails.referralPoints"] = amount;
-
-//   if (alsoAddBalance) updateObj["walletDetails.balance"] = amount;
-
-//   await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
-// };
-
 const updateUserWallet = async (
   userId,
   amount,
