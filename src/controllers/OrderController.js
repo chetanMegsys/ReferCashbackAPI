@@ -176,89 +176,529 @@ const createOrder = async (req, res) => {
   }
 };
 
+// const updateUserWallet = async (
+//   userId,
+//   amount,
+//   type = "referral",
+//   alsoAddBalance = true,
+//   applyTDS = false,
+// ) => {
+//   try {
+//     if (!userId || !amount || amount <= 0) return;
+
+//     const TDS_PERCENT = Number(process.env.TDS_PERCENT) || 0;
+
+//     const user = await userModel.findById(userId);
+//     if (!user) return;
+
+//     let creditAmount = Number(amount);
+//     let tdsAmount = 0;
+
+//     // =============================
+//     // APPLY TDS
+//     // =============================
+//     if (applyTDS && TDS_PERCENT > 0) {
+//       tdsAmount = +(creditAmount * (TDS_PERCENT / 100)).toFixed(2);
+//       creditAmount = +(creditAmount - tdsAmount).toFixed(2);
+//     }
+
+//     const updateObj = {};
+
+//     // Update Points
+//     if (type === "customer") {
+//       updateObj["walletDetails.cashbackPoints"] = creditAmount;
+//     } else {
+//       updateObj["walletDetails.referralPoints"] = creditAmount;
+//     }
+
+//     // Update Balance
+//     if (alsoAddBalance) {
+//       updateObj["walletDetails.balance"] = creditAmount;
+//     }
+
+//     // =============================
+//     // CREDIT USER (NO TRANSACTION ENTRY)
+//     // =============================
+//     await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+
+//     // =============================
+//     // TDS LOGIC
+//     // =============================
+//     if (applyTDS && tdsAmount > 0) {
+//       // 🔹 Find active admin
+//       const admin = await userModel.findOne({
+//         role: "admin",
+//         status: "active",
+//       });
+
+//       if (!admin) {
+//         throw new Error("Active admin not found");
+//       }
+
+//       // 🔹 If user is admin → skip TDS
+//       if (userId.toString() === admin._id.toString()) {
+//         tdsAmount = 0; // no deduction
+//       }
+
+//       if (tdsAmount > 0) {
+//         // 🔹 Credit TDS to Admin Wallet
+//         await userModel.findByIdAndUpdate(admin._id, {
+//           $inc: {
+//             "walletDetails.balance": tdsAmount,
+//             "walletDetails.admiCharge": tdsAmount,
+//           },
+//         });
+
+//         // =============================
+//         // ONLY TWO TRANSACTIONS
+//         // =============================
+//         await transactionModel.insertMany([
+//           {
+//             userId,
+//             transactionType: "debit",
+//             amount: tdsAmount,
+//             category: "adminCharge",
+//             narration: `${TDS_PERCENT}% admin charges deducted`,
+//           },
+//           {
+//             userId: admin._id,
+//             transactionType: "credit",
+//             amount: tdsAmount,
+//             category: "adminCharge",
+//             narration: `admin charges collected from user ${userId}`,
+//           },
+//         ]);
+//       }
+//     }
+
+//     return {
+//       creditedAmount: creditAmount,
+//       tdsAmount,
+//       tdsPercent: TDS_PERCENT,
+//     };
+//   } catch (error) {
+//     console.error("Error in updateUserWallet:", error);
+//     throw error;
+//   }
+// };
+
+// const acceptOrRejectOrder = async (req, res) => {
+//   try {
+//     const { id, status, userId } = req.body; // userId from req.body or auth token
+
+//     if (!id || !status || !userId)
+//       return res
+//         .status(400)
+//         .send({ msg: "Please enter id, status, and userId" });
+
+//     // 🔹 Find order
+//     const order = await orderModel.findOne({ _id: id, status: "Pending" });
+
+//     if (!order)
+//       return res
+//         .status(404)
+//         .send({ msg: "Order not found or already accepted" });
+
+//     // 🔹 Check that this user is the correct shopkeeper
+//     if (order.shopkeeperId.toString() !== userId.toString()) {
+//       return res.status(403).send({
+//         msg: "Unauthorized: This order does not belong to the logged-in shopkeeper",
+//       });
+//     }
+//     const user = await userModel
+//       .findById(order?.userId)
+//       .select("firstName lastName");
+
+//     const userName = user
+//       ? `${user.firstName} ${
+//           user.lastName ? user.lastName.charAt(0).toUpperCase() : ""
+//         }`
+//       : "";
+
+//     // 🔹 Prevent duplicate status update
+//     if (order.status !== "Pending")
+//       return res.status(400).send({ msg: `Order already ${order.status}` });
+
+//     // --------------------------
+//     // ACCEPT ORDER
+//     // --------------------------
+//     if (status === "accept") {
+//       order.status = "Accepted";
+
+//       // 🔹 Calculate cashback
+//       const { cashbackReceivers, cashbackSummary, lapIncome } =
+//         await calculateCashbackHelper({
+//           userId: order.userId,
+//           shopkeeperId: order.shopkeeperId,
+//           orderAmount: order.amount,
+//         });
+//       const shopkeeperWallateDetails = await getWalletDetails(
+//         order.shopkeeperId,
+//       );
+//       if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
+//         return res.status(400).json({
+//           msg: "You are not eligible to accept this order due to insufficient reward points balance.",
+//         });
+//       }
+//       const allTransactions = [];
+
+//       await allTransactions.push({
+//         userId: order?.shopkeeperId,
+//         transactionType: "debit",
+//         orderId: order._id,
+//         amount: cashbackSummary?.totalCashback,
+//         category: "cashback",
+//         narration: `Cashback deduction for order ${order?.orderId}`,
+//       });
+
+//       const amount = cashbackSummary?.totalCashback;
+
+//       await userModel.findByIdAndUpdate(
+//         order?.shopkeeperId,
+//         { $inc: { "walletDetails.balance": -amount } }, // decrement balance
+//         { new: true },
+//       );
+//       // --------------------------
+//       // Cashback distribution
+//       // --------------------------
+
+//       // 🔹 Customer cashback
+//       if (cashbackReceivers.customer?.cashback > 0) {
+//         await updateUserWallet(
+//           cashbackReceivers.customer.userId,
+//           cashbackReceivers.customer.cashback,
+//           "customer",
+//           true,
+//           true,
+//         );
+//         allTransactions.push({
+//           userId: cashbackReceivers?.customer?.userId,
+//           transactionType: "credit",
+//           orderId: order?._id,
+//           amount: cashbackReceivers?.customer?.cashback,
+//           category: "cashback",
+//           narration: "Cashback received",
+//         });
+//       }
+
+//       // 🔹 Referrer cashback
+//       if (cashbackReceivers.referrer?.cashback > 0) {
+//         await updateUserWallet(
+//           cashbackReceivers.referrer.userId,
+//           cashbackReceivers.referrer.cashback,
+//           "referral",
+//           true,
+//           true,
+//         );
+//         allTransactions.push({
+//           userId: cashbackReceivers.referrer.userId,
+//           transactionType: "credit",
+//           orderId: order._id,
+//           amount: cashbackReceivers.referrer.cashback,
+//           category: "reward",
+//           narration: `${userName} reward points`,
+//         });
+//       }
+
+//       // 🔹 Multi-level cashback: LEVELS, IROT-1, IROT-2
+//       const multiLevelGroups = [
+//         {
+//           group: cashbackReceivers.levels,
+//           type: "loyalty points",
+//           category: "loyaltyRewards",
+//         },
+//         {
+//           group: cashbackReceivers.irot1,
+//           type: "experience points-1",
+//           category: "experiencePoint1",
+//         },
+//         {
+//           group: cashbackReceivers.irot2,
+//           type: "experience points 2",
+//           category: "experiencePoint2",
+//         },
+//       ];
+
+//       for (const { group, type, category } of multiLevelGroups) {
+//         if (Array.isArray(group)) {
+//           for (const entry of group) {
+//             if (!entry) continue;
+//             await updateUserWallet(
+//               entry.userId,
+//               entry.cashback,
+//               "referral",
+//               true,
+//               true,
+//             );
+//             allTransactions.push({
+//               userId: entry.userId,
+//               transactionType: "credit",
+//               orderId: order._id,
+//               amount: entry.cashback,
+//               category: category,
+//               narration: `${userName} ${type} `,
+//             });
+//           }
+//         }
+//       }
+
+//       // 🔹 ROR cashback
+//       if (cashbackReceivers.ror?.receiver) {
+//         await updateUserWallet(
+//           cashbackReceivers.ror.receiver.userId,
+//           cashbackReceivers.ror.receiver.cashback,
+//           "referral",
+//           true,
+//           true,
+//         );
+//         allTransactions.push({
+//           userId: cashbackReceivers.ror.receiver.userId,
+//           transactionType: "credit",
+//           orderId: order._id,
+//           amount: cashbackReceivers.ror.receiver.cashback,
+//           category: "RORP",
+//           narration: `${userName} RORP cashback`,
+//         });
+//       }
+//       if (order?.isWalletSelected) {
+//         let creditAmount = order.amount || 0;
+//         // 1️⃣ Refund to wallet
+//         await updateUserWallet(
+//           order.shopkeeperId,
+//           creditAmount,
+//           "customer",
+//           true,
+//           true,
+//         );
+
+//         // 2️⃣ Log refund transaction
+//         await allTransactions.push({
+//           userId: order.shopkeeperId,
+//           transactionType: "credit",
+//           orderId: order._id,
+//           amount: creditAmount,
+//           category: "order",
+//           narration: `Order ${order.orderId} amount credited after deduction`,
+//         });
+//       }
+//       // 🔹 Shopkeeper cashback (separate entry)
+//       if (cashbackReceivers.shopkeeper?.cashback > 0) {
+//         await updateUserWallet(
+//           cashbackReceivers.shopkeeper.userId,
+//           cashbackReceivers.shopkeeper.cashback,
+//           "referral",
+//           true,
+//           true,
+//         );
+//         allTransactions.push({
+//           userId: cashbackReceivers.shopkeeper.userId,
+//           transactionType: "credit",
+//           orderId: order._id,
+//           amount: cashbackReceivers.shopkeeper.cashback,
+//           category: "tieUp",
+//           narration: `${userName} Tie up income`,
+//         });
+//       }
+
+//       // 🔹 SuperAdmin cashback
+//       if (
+//         Array.isArray(cashbackReceivers.superadmin) &&
+//         cashbackReceivers.superadmin.length > 0
+//       ) {
+//         for (const admin of cashbackReceivers.superadmin) {
+//           await updateUserWallet(
+//             admin.userId,
+//             admin.cashback,
+//             "referral",
+//             true,
+//             true,
+//           );
+//           allTransactions.push({
+//             userId: admin.userId,
+//             transactionType: "credit",
+//             orderId: order._id,
+//             amount: admin.cashback,
+//             category: "companyProfit",
+//             narration: `${userName} SuperAdmin cashback`,
+//           });
+//         }
+//       }
+//       // // 🔹 Admin cashback
+//       // if (
+//       //   Array.isArray(cashbackReceivers.admin) &&
+//       //   cashbackReceivers.admin.length > 0
+//       // ) {
+//       //   for (const admin of cashbackReceivers.admin) {
+//       //     await updateUserWallet(
+//       //       admin.userId,
+//       //       admin.cashback,
+//       //       "referral",
+//       //       true,
+//       //       true,
+//       //     );
+//       //     allTransactions.push({
+//       //       userId: admin.userId,
+//       //       transactionType: "credit",
+//       //       orderId: order._id,
+//       //       amount: admin.cashback,
+//       //       category: "adminCharge",
+//       //       narration: `${userName} admin charges`,
+//       //     });
+//       //   }
+//       // }
+
+//       // 🔹 Save all transactions
+//       if (allTransactions.length > 0)
+//         await transactionModel.insertMany(allTransactions);
+
+//       for (const entry of lapIncome) {
+//         if (!entry || !entry.skippedUserId) continue;
+
+//         await updateLapIncome(
+//           entry?.skippedUserId ? entry.skippedUserId : null,
+//           entry?.amount ? entry.amount : 0,
+//         );
+//       }
+
+//       await order.save();
+//       return res.status(200).send({
+//         msg: "Order accepted and cashback distributed successfully",
+//         cashbackSummary,
+//       });
+//     }
+
+//     // --------------------------
+//     // REJECT ORDER
+//     // --------------------------
+//     else if (status === "reject") {
+//       order.status = "Rejected";
+//       await order.save();
+
+//       // Refund only if order was paid using wallet
+//       if (order?.isWalletSelected) {
+//         const amount = Number(order.amount) || 0;
+
+//         // 1️⃣ Refund to wallet
+//         await updateUserWallet(order.userId, amount, "customer", true);
+
+//         // 2️⃣ Log refund transaction
+//         await transactionModel.create({
+//           userId: order.userId,
+//           transactionType: "credit",
+//           orderId: order._id,
+//           amount,
+//           category: "refund",
+//           narration: `Order ${order.orderId} rejected - amount refunded to wallet`,
+//         });
+
+//         return res.status(200).send({
+//           msg: "Order rejected and reward points refund processed successfully",
+//         });
+//       }
+
+//       // If order was NOT paid by wallet → no refund needed
+//       return res.status(200).send({
+//         msg: "Order rejected successfully ",
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Error in acceptOrRejectOrder:", err);
+//     return res.status(500).send({
+//       msg: "Internal server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
+// 🔥 ADMIN CACHE (outside function - top of file)
+// 🔥 ADMIN CACHE (top of file)
+let cachedAdmin = null;
+
+const getActiveAdmin = async () => {
+  if (!cachedAdmin) {
+    cachedAdmin = await userModel.findOne({
+      role: "admin",
+      status: "active",
+    });
+  }
+  return cachedAdmin;
+};
+
 const updateUserWallet = async (
   userId,
   amount,
   type = "referral",
   alsoAddBalance = true,
   applyTDS = false,
+  catagory,
 ) => {
   try {
     if (!userId || !amount || amount <= 0) return;
 
     const TDS_PERCENT = Number(process.env.TDS_PERCENT) || 0;
 
-    const user = await userModel.findById(userId);
+    const user = await userModel.findById(userId).select("_id");
     if (!user) return;
 
     let creditAmount = Number(amount);
     let tdsAmount = 0;
 
     // =============================
-    // APPLY TDS
+    // APPLY TDS (FIXED)
     // =============================
     if (applyTDS && TDS_PERCENT > 0) {
-      tdsAmount = +(creditAmount * (TDS_PERCENT / 100)).toFixed(2);
+      tdsAmount = creditAmount * (TDS_PERCENT / 100);
+
+      // ✅ Ensure minimum TDS of 0.01 for small amounts
+      if (tdsAmount > 0 && tdsAmount < 0.01) tdsAmount = 0.01;
+
       creditAmount = +(creditAmount - tdsAmount).toFixed(2);
     }
 
     const updateObj = {};
 
-    // Update Points
     if (type === "customer") {
       updateObj["walletDetails.cashbackPoints"] = creditAmount;
     } else {
       updateObj["walletDetails.referralPoints"] = creditAmount;
     }
 
-    // Update Balance
     if (alsoAddBalance) {
       updateObj["walletDetails.balance"] = creditAmount;
     }
 
-    // =============================
-    // CREDIT USER (NO TRANSACTION ENTRY)
-    // =============================
-    await userModel.findByIdAndUpdate(userId, { $inc: updateObj });
+    await userModel.updateOne({ _id: userId }, { $inc: updateObj });
 
     // =============================
     // TDS LOGIC
     // =============================
     if (applyTDS && tdsAmount > 0) {
-      // 🔹 Find active admin
-      const admin = await userModel.findOne({
-        role: "admin",
-        status: "active",
-      });
+      const admin = await getActiveAdmin();
+      if (!admin) throw new Error("Active admin not found");
 
-      if (!admin) {
-        throw new Error("Active admin not found");
-      }
-
-      // 🔹 If user is admin → skip TDS
       if (userId.toString() === admin._id.toString()) {
-        tdsAmount = 0; // no deduction
+        tdsAmount = 0; // skip if admin
       }
 
       if (tdsAmount > 0) {
-        // 🔹 Credit TDS to Admin Wallet
-        await userModel.findByIdAndUpdate(admin._id, {
-          $inc: {
-            "walletDetails.balance": tdsAmount,
-            "walletDetails.admiCharge": tdsAmount,
+        await userModel.updateOne(
+          { _id: admin._id },
+          {
+            $inc: {
+              "walletDetails.balance": tdsAmount,
+              "walletDetails.admiCharge": tdsAmount,
+            },
           },
-        });
+        );
 
-        // =============================
-        // ONLY TWO TRANSACTIONS
-        // =============================
+        // ✅ ORIGINAL NARRATION KEPT SAME
         await transactionModel.insertMany([
           {
             userId,
             transactionType: "debit",
             amount: tdsAmount,
             category: "adminCharge",
-            narration: `${TDS_PERCENT}% admin charges deducted`,
+            narration: `${TDS_PERCENT}% admin charges deducted for ${catagory}`,
           },
           {
             userId: admin._id,
@@ -284,27 +724,29 @@ const updateUserWallet = async (
 
 const acceptOrRejectOrder = async (req, res) => {
   try {
-    const { id, status, userId } = req.body; // userId from req.body or auth token
+    const { id, status, userId } = req.body;
 
     if (!id || !status || !userId)
-      return res
-        .status(400)
-        .send({ msg: "Please enter id, status, and userId" });
+      return res.status(400).send({
+        msg: "Please enter id, status, and userId",
+      });
 
-    // 🔹 Find order
-    const order = await orderModel.findOne({ _id: id, status: "Pending" });
+    const order = await orderModel.findOne({
+      _id: id,
+      status: "Pending",
+    });
 
     if (!order)
-      return res
-        .status(404)
-        .send({ msg: "Order not found or already accepted" });
+      return res.status(404).send({
+        msg: "Order not found or already accepted",
+      });
 
-    // 🔹 Check that this user is the correct shopkeeper
     if (order.shopkeeperId.toString() !== userId.toString()) {
       return res.status(403).send({
         msg: "Unauthorized: This order does not belong to the logged-in shopkeeper",
       });
     }
+
     const user = await userModel
       .findById(order?.userId)
       .select("firstName lastName");
@@ -315,34 +757,37 @@ const acceptOrRejectOrder = async (req, res) => {
         }`
       : "";
 
-    // 🔹 Prevent duplicate status update
-    if (order.status !== "Pending")
-      return res.status(400).send({ msg: `Order already ${order.status}` });
-
-    // --------------------------
-    // ACCEPT ORDER
-    // --------------------------
     if (status === "accept") {
       order.status = "Accepted";
 
-      // 🔹 Calculate cashback
       const { cashbackReceivers, cashbackSummary, lapIncome } =
         await calculateCashbackHelper({
           userId: order.userId,
           shopkeeperId: order.shopkeeperId,
           orderAmount: order.amount,
         });
-      const shopkeeperWallateDetails = await getWalletDetails(
-        order.shopkeeperId,
-      );
-      if (shopkeeperWallateDetails.balance < cashbackSummary?.totalCashback) {
+
+      const shopkeeperWallet = await getWalletDetails(order.shopkeeperId);
+
+      if (shopkeeperWallet.balance < cashbackSummary?.totalCashback) {
         return res.status(400).json({
           msg: "You are not eligible to accept this order due to insufficient reward points balance.",
         });
       }
-      const allTransactions = [];
 
-      await allTransactions.push({
+      const allTransactions = [];
+      const walletPromises = [];
+
+      const amount = cashbackSummary?.totalCashback;
+
+      walletPromises.push(
+        userModel.updateOne(
+          { _id: order.shopkeeperId },
+          { $inc: { "walletDetails.balance": -amount } },
+        ),
+      );
+
+      allTransactions.push({
         userId: order?.shopkeeperId,
         transactionType: "debit",
         orderId: order._id,
@@ -351,56 +796,52 @@ const acceptOrRejectOrder = async (req, res) => {
         narration: `Cashback deduction for order ${order?.orderId}`,
       });
 
-      const amount = cashbackSummary?.totalCashback;
+      // Helper (NO narration change)
+      const pushWalletUpdate = (receiver, type, category, narration) => {
+        if (receiver?.cashback > 0) {
+          walletPromises.push(
+            updateUserWallet(
+              receiver.userId,
+              receiver.cashback,
+              type,
+              true,
+              true, // ✅ TDS applied here
+              category,
+            ),
+          );
 
-      await userModel.findByIdAndUpdate(
-        order?.shopkeeperId,
-        { $inc: { "walletDetails.balance": -amount } }, // decrement balance
-        { new: true },
-      );
-      // --------------------------
-      // Cashback distribution
-      // --------------------------
+          allTransactions.push({
+            userId: receiver.userId,
+            transactionType: "credit",
+            orderId: order._id,
+            amount: receiver.cashback,
+            category,
+            narration,
+          });
+        }
+      };
 
-      // 🔹 Customer cashback
+      // 🔹 Customer cashback (ORIGINAL narration)
       if (cashbackReceivers.customer?.cashback > 0) {
-        await updateUserWallet(
-          cashbackReceivers.customer.userId,
-          cashbackReceivers.customer.cashback,
+        pushWalletUpdate(
+          cashbackReceivers.customer,
           "customer",
-          true,
-          true,
+          "cashback",
+          "Cashback received",
         );
-        allTransactions.push({
-          userId: cashbackReceivers?.customer?.userId,
-          transactionType: "credit",
-          orderId: order?._id,
-          amount: cashbackReceivers?.customer?.cashback,
-          category: "cashback",
-          narration: "Cashback received",
-        });
       }
 
-      // 🔹 Referrer cashback
+      // 🔹 Referrer cashback (ORIGINAL narration)
       if (cashbackReceivers.referrer?.cashback > 0) {
-        await updateUserWallet(
-          cashbackReceivers.referrer.userId,
-          cashbackReceivers.referrer.cashback,
+        pushWalletUpdate(
+          cashbackReceivers.referrer,
           "referral",
-          true,
-          true,
+          "reward",
+          `${userName} reward points`,
         );
-        allTransactions.push({
-          userId: cashbackReceivers.referrer.userId,
-          transactionType: "credit",
-          orderId: order._id,
-          amount: cashbackReceivers.referrer.cashback,
-          category: "reward",
-          narration: `${userName} reward points`,
-        });
       }
 
-      // 🔹 Multi-level cashback: LEVELS, IROT-1, IROT-2
+      // 🔹 Multi-level cashback (ORIGINAL narration)
       const multiLevelGroups = [
         {
           group: cashbackReceivers.levels,
@@ -422,145 +863,85 @@ const acceptOrRejectOrder = async (req, res) => {
       for (const { group, type, category } of multiLevelGroups) {
         if (Array.isArray(group)) {
           for (const entry of group) {
-            if (!entry) continue;
-            await updateUserWallet(
-              entry.userId,
-              entry.cashback,
+            pushWalletUpdate(
+              entry,
               "referral",
-              true,
-              true,
+              category,
+              `${userName} ${type} `,
             );
-            allTransactions.push({
-              userId: entry.userId,
-              transactionType: "credit",
-              orderId: order._id,
-              amount: entry.cashback,
-              category: category,
-              narration: `${userName} ${type} `,
-            });
           }
         }
       }
 
-      // 🔹 ROR cashback
+      // 🔹 ROR cashback (ORIGINAL narration)
       if (cashbackReceivers.ror?.receiver) {
-        await updateUserWallet(
-          cashbackReceivers.ror.receiver.userId,
-          cashbackReceivers.ror.receiver.cashback,
+        pushWalletUpdate(
+          cashbackReceivers.ror.receiver,
           "referral",
-          true,
-          true,
+          "RORP",
+          `${userName} RORP cashback`,
         );
-        allTransactions.push({
-          userId: cashbackReceivers.ror.receiver.userId,
-          transactionType: "credit",
-          orderId: order._id,
-          amount: cashbackReceivers.ror.receiver.cashback,
-          category: "RORP",
-          narration: `${userName} RORP cashback`,
-        });
       }
+
+      // 🔹 Shopkeeper cashback (ORIGINAL narration)
+      if (cashbackReceivers.shopkeeper?.cashback > 0) {
+        pushWalletUpdate(
+          cashbackReceivers.shopkeeper,
+          "referral",
+          "tieUp",
+          `${userName} Tie up income`,
+        );
+      }
+
+      // 🔹 SuperAdmin cashback (ORIGINAL narration)
+      if (Array.isArray(cashbackReceivers.superadmin)) {
+        for (const admin of cashbackReceivers.superadmin) {
+          pushWalletUpdate(
+            admin,
+            "referral",
+            "companyProfit",
+            `${userName} SuperAdmin cashback`,
+          );
+        }
+      }
+
+      // 🔹 Refund (ORIGINAL narration)
       if (order?.isWalletSelected) {
-        let creditAmount = order.amount || 0;
-        // 1️⃣ Refund to wallet
-        await updateUserWallet(
-          order.shopkeeperId,
-          creditAmount,
-          "customer",
-          true,
-          true,
+        walletPromises.push(
+          updateUserWallet(
+            order.shopkeeperId,
+            order.amount,
+            "customer",
+            true,
+            false,
+          ),
         );
 
-        // 2️⃣ Log refund transaction
-        await allTransactions.push({
+        allTransactions.push({
           userId: order.shopkeeperId,
           transactionType: "credit",
           orderId: order._id,
-          amount: creditAmount,
+          amount: order.amount,
           category: "order",
           narration: `Order ${order.orderId} amount credited after deduction`,
         });
       }
-      // 🔹 Shopkeeper cashback (separate entry)
-      if (cashbackReceivers.shopkeeper?.cashback > 0) {
-        await updateUserWallet(
-          cashbackReceivers.shopkeeper.userId,
-          cashbackReceivers.shopkeeper.cashback,
-          "referral",
-          true,
-          true,
-        );
-        allTransactions.push({
-          userId: cashbackReceivers.shopkeeper.userId,
-          transactionType: "credit",
-          orderId: order._id,
-          amount: cashbackReceivers.shopkeeper.cashback,
-          category: "tieUp",
-          narration: `${userName} Tie up income`,
-        });
-      }
 
-      // 🔹 SuperAdmin cashback
-      if (
-        Array.isArray(cashbackReceivers.superadmin) &&
-        cashbackReceivers.superadmin.length > 0
-      ) {
-        for (const admin of cashbackReceivers.superadmin) {
-          await updateUserWallet(
-            admin.userId,
-            admin.cashback,
-            "referral",
-            true,
-            true,
-          );
-          allTransactions.push({
-            userId: admin.userId,
-            transactionType: "credit",
-            orderId: order._id,
-            amount: admin.cashback,
-            category: "companyProfit",
-            narration: `${userName} SuperAdmin cashback`,
-          });
-        }
-      }
-      // // 🔹 Admin cashback
-      // if (
-      //   Array.isArray(cashbackReceivers.admin) &&
-      //   cashbackReceivers.admin.length > 0
-      // ) {
-      //   for (const admin of cashbackReceivers.admin) {
-      //     await updateUserWallet(
-      //       admin.userId,
-      //       admin.cashback,
-      //       "referral",
-      //       true,
-      //       true,
-      //     );
-      //     allTransactions.push({
-      //       userId: admin.userId,
-      //       transactionType: "credit",
-      //       orderId: order._id,
-      //       amount: admin.cashback,
-      //       category: "adminCharge",
-      //       narration: `${userName} admin charges`,
-      //     });
-      //   }
-      // }
+      await Promise.all(walletPromises);
 
-      // 🔹 Save all transactions
       if (allTransactions.length > 0)
         await transactionModel.insertMany(allTransactions);
 
-      for (const entry of lapIncome) {
-        if (!entry || !entry.skippedUserId) continue;
-
-        await updateLapIncome(
-          entry?.skippedUserId ? entry.skippedUserId : null,
-          entry?.amount ? entry.amount : 0,
-        );
-      }
+      await Promise.all(
+        lapIncome.map((entry) =>
+          entry?.skippedUserId
+            ? updateLapIncome(entry.skippedUserId, entry.amount)
+            : null,
+        ),
+      );
 
       await order.save();
+
       return res.status(200).send({
         msg: "Order accepted and cashback distributed successfully",
         cashbackSummary,
@@ -568,35 +949,25 @@ const acceptOrRejectOrder = async (req, res) => {
     }
 
     // --------------------------
-    // REJECT ORDER
+    // REJECT
     // --------------------------
     else if (status === "reject") {
       order.status = "Rejected";
       await order.save();
 
-      // Refund only if order was paid using wallet
       if (order?.isWalletSelected) {
-        const amount = Number(order.amount) || 0;
+        await updateUserWallet(order.userId, order.amount, "customer", true);
 
-        // 1️⃣ Refund to wallet
-        await updateUserWallet(order.userId, amount, "customer", true);
-
-        // 2️⃣ Log refund transaction
         await transactionModel.create({
           userId: order.userId,
           transactionType: "credit",
           orderId: order._id,
-          amount,
+          amount: order.amount,
           category: "refund",
           narration: `Order ${order.orderId} rejected - amount refunded to wallet`,
         });
-
-        return res.status(200).send({
-          msg: "Order rejected and reward points refund processed successfully",
-        });
       }
 
-      // If order was NOT paid by wallet → no refund needed
       return res.status(200).send({
         msg: "Order rejected successfully ",
       });
