@@ -1546,6 +1546,7 @@ const getOrdersForAdmin = async (req, res) => {
           isWalletSelected: 1,
           orderId: 1,
           status: 1,
+          cashbackSummary: 1,
         },
       },
     ]);
