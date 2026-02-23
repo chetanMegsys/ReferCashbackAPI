@@ -36,6 +36,106 @@ const getUser = async (req, res) => {
               },
             },
           },
+          {
+            $lookup: {
+              from: "users",
+              localField: "referalUser",
+              foreignField: "_id",
+              as: "referrer",
+            },
+          },
+          {
+            $unwind: {
+              path: "$referrer",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          {
+            $addFields: {
+              referalUser: {
+                Name: {
+                  $cond: [
+                    { $ifNull: ["$referrer", false] },
+                    {
+                      $concat: [
+                        "$referrer.firstName",
+                        " ",
+                        "$referrer.lastName",
+                      ],
+                    },
+                    null,
+                  ],
+                },
+                Mobile: "$referrer.mobile",
+                Email: "$referrer.email",
+              },
+            },
+          }, // 🔹 Business Lookup
+          {
+            $lookup: {
+              from: "businesses",
+              localField: "_id",
+              foreignField: "shopkeeperId",
+              as: "businessDetails",
+            },
+          },
+
+          // Optional: If one user has only one business
+          {
+            $unwind: {
+              path: "$businessDetails",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+
+          {
+            $lookup: {
+              from: "categories",
+              localField: "businessDetails.categories",
+              foreignField: "_id",
+              as: "categoryDetails",
+            },
+          },
+          {
+            $addFields: {
+              "businessDetails.categories": "$categoryDetails",
+            },
+          },
+          {
+            $addFields: {
+              businessDetails: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ["$businessDetails", null] },
+                      { $eq: ["$businessDetails.categories", []] },
+                    ],
+                  },
+                  null, // 👈 return null instead
+                  "$businessDetails",
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              referrer: 0, // 🔥 removes full referrer object
+              password: 0,
+              deviceDetails: 0,
+              refreshToken: 0,
+              __v: 0,
+              categoryDetails: 0,
+              "businessDetails.location": 0,
+              "businessDetails.createdAt": 0,
+              "businessDetails.updatedAt": 0,
+              "businessDetails.categories.createdAt": 0,
+              "businessDetails.categories.updatedAt": 0,
+              "businessDetails.categories.__v": 0,
+              "businessDetails.categories.minDiscount": 0,
+              "businessDetails.categories.status": 0,
+            },
+          },
+
           { $sort: { statusOrder: 1, createdAt: -1 } },
         ]);
       }
@@ -127,7 +227,8 @@ const getUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { id, rationCardNumber, currentPincode, upi, mobile } = req.body;
+    const { id, rationCardNumber, currentPincode, upi, mobile, isVerified } =
+      req.body;
     // ✅ PINCODE REGEX
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
@@ -183,7 +284,11 @@ const updateUser = async (req, res) => {
 
     let updateData = req.body;
     let oldImagePath = null;
-
+    // if (typeof isVerified === "boolean") {
+    //   updateData.isVerified = isVerified; // true or false
+    // } else {
+    //   updateData.isVerified = null; // if not provided
+    // }
     const updatedUser = await userModel
       .findByIdAndUpdate(
         id,

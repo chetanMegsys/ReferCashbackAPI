@@ -5,7 +5,7 @@ const user = require("../models/userModel");
 
 const addBusiness = async (req, res) => {
   try {
-    const { id, lat, long, categories, ...restData } = req.body;
+    const { id, categories, ...restData } = req.body;
 
     const formattedCategories = Array.isArray(categories)
       ? categories
@@ -14,22 +14,11 @@ const addBusiness = async (req, res) => {
         : [];
 
     // ✅ Use simple object format for location
-    const location = {
-      type: "Point",
-      coordinates: [Number(long), Number(lat)],
-    };
 
     if (!id) {
-      if (!location) {
-        return res
-          .status(400)
-          .send({ msg: "Latitude and Longitude are required", data: null });
-      }
-
       const newBusiness = await businessModel.create({
         ...restData,
         categories: formattedCategories,
-        location,
       });
 
       return res.status(200).send({
@@ -43,8 +32,6 @@ const addBusiness = async (req, res) => {
       ...restData,
       categories: formattedCategories,
     };
-
-    if (location) updateData.location = location;
 
     const updatedBusiness = await businessModel.findByIdAndUpdate(
       id,

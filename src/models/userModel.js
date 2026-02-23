@@ -114,10 +114,14 @@ const userSchema = new mongoose.Schema(
       required: false,
       trim: true,
     },
+    isVerified: {
+      type: Boolean,
+    },
     rationCardNumber: {
       type: String,
       required: false,
       trim: true,
+      unique: true,
     },
     deviceDetails: [
       {
