@@ -161,8 +161,8 @@ const userSchema = new mongoose.Schema(
       admiCharge: { type: Number },
       lapIncome: { type: Number },
       monthlyIncome: { type: Number },
-      withdrawRequest: { type: Number, default: 0 },
-      depositRequest: { type: Number, default: 0 },
+      withdrawRequest: { type: Number},
+      depositRequest: { type: Number },
     },
   },
 
