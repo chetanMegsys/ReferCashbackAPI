@@ -57,6 +57,16 @@ const {
 //     });
 //   }
 // };
+let cachedAdmin = null;
+const getActiveAdmin = async () => {
+  if (!cachedAdmin) {
+    cachedAdmin = await userModel.findOne({
+      role: "admin",
+      status: "active",
+    });
+  }
+  return cachedAdmin;
+};
 
 const withdrawRequest = async (req, res) => {
   try {
@@ -147,7 +157,7 @@ const addWalletBalance = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ msg: "Invalid userId format" });
     }
-
+    const adminUser = await getActiveAdmin();
     const userExists = await userModel
       .findOne({
         _id: userId,
@@ -159,18 +169,31 @@ const addWalletBalance = async (req, res) => {
     }
 
     userExists.walletDetails.balance += Number(amount);
+    adminUser.walletDetails.balance -= Number(amount);
+    adminUser.walletDetails.depositRequest += Number(amount);
     await userExists.save();
+    await adminUser.save();
 
-    const newTrans = await transactionModel.create({
-      userId,
-      transactionType: "credit",
-      orderId: null,
-      amount,
-      category: "adminCredit",
-      narration: "Amount credited by admin",
-    });
+    const transactions = await transactionModel.insertMany([
+      {
+        userId: userId,
+        transactionType: "credit",
+        orderId: null,
+        amount,
+        category: "adminCredit",
+        narration: "Amount credited by admin",
+      },
+      {
+        userId: adminUser._id,
+        transactionType: "debit",
+        orderId: null,
+        amount,
+        category: "adminCredit",
+        narration: `Amount credited to ${userExists.firstName} ${userExists.lastName}`,
+      },
+    ]);
 
-    if (!newTrans) {
+    if (!transactions) {
       return res
         .status(500)
         .json({ msg: "Failed to create transaction record" });
@@ -390,7 +413,7 @@ const approveRejecteWithdrawRequest = async (req, res) => {
         .status(404)
         .json({ msg: `Withdraw request not found to ${action}` });
     }
-
+    const adminUser = await getActiveAdmin();
     const user = await userModel.findOne({
       _id: withdrawRequest.userId,
       status: "active",
@@ -455,19 +478,33 @@ const approveRejecteWithdrawRequest = async (req, res) => {
 
     if (savedRequest && action === "approve") {
       user.walletDetails.balance -= savedRequest.amount;
+      adminUser.walletDetails.balance += savedRequest.amount;
+      adminUser.walletDetails.withdrawRequest += savedRequest.amount;
       await user.save();
+      await adminUser.save();
 
-      const newTrans = await transactionModel.create({
-        userId: savedRequest.userId,
-        transactionType: "debit",
-        orderId: null,
-        amount: savedRequest.amount,
-        requestId: savedRequest._id,
-        category: "withdrawalRequest",
-        narration: "Withdrawal request approved",
-      });
+      const transactions = await transactionModel.insertMany([
+        {
+          userId: savedRequest.userId,
+          transactionType: "debit",
+          orderId: null,
+          amount: savedRequest.amount,
+          requestId: savedRequest._id,
+          category: "withdrawalRequest",
+          narration: "Withdrawal request approved",
+        },
+        {
+          userId: adminUser._id,
+          transactionType: "credit",
+          orderId: null,
+          amount: savedRequest.amount,
+          requestId: savedRequest._id,
+          category: "withdrawalRequest",
+          narration: `Withdrawal request approved - ${user.firstName} ${user.lastName}`,
+        },
+      ]);
 
-      if (!newTrans) {
+      if (!transactions) {
         return res
           .status(400)
           .json({ msg: "Failed to create transaction record" });
