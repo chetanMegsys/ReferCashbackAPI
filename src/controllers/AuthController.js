@@ -4,6 +4,7 @@ const { createOrUpdateBusiness } = require("../services/businessService");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 const businessModel = require("../models/businessModel");
 
 const registerUser = async (req, res) => {
@@ -335,58 +336,141 @@ const verifyRefreshToken = async (req, res) => {
   }
 };
 
+// const sendOtp = async (req, res) => {
+//   try {
+//     const { mobile, customer } = req.body;
+
+//     if (!mobile) {
+//       return res.status(400).send({ msg: "Please Enter Mobile Number" });
+//     }
+
+//     const isMobileRegister = await userModel.findOne({ mobile });
+
+//     if (!isMobileRegister) {
+//       return res
+//         .status(400)
+//         .send({ msg: "You are not registered, Please Register first." });
+//     }
+
+//     // Generate random 4-digit OTP
+//     const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+//     // Build the 2Factor SMS API URL
+//     const apiKey = "9d49164b-c436-11ef-8b17-0200cd936042";
+//     const templateName = "SMSOTPTemplate"; // must match the one on your 2Factor account
+//     const senderId = "FITMYC";
+
+//     // Prepare customer name for template variable
+//     const custName = customer?.split(" ")[0] || "";
+//     const smsUrl = `https://2factor.in/API/R1/?module=TRANS_SMS&apikey=${apiKey}&to=${mobile}&from=${senderId}&templatename=${templateName}&var1=${custName}&var2=${otp}`;
+
+//     // Send SMS via fetch (GET request)
+//     const response = await fetch(smsUrl);
+//     const result = await response.json();
+
+//     if (result.Status === "Success") {
+//       await otpModel.create({
+//         mobile,
+//         otp,
+//         expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+//       });
+
+//       return res.status(200).send({
+//         status: true,
+//         msg: "OTP sent successfully.",
+//       });
+//     } else {
+//       return res.status(500).send({
+//         status: false,
+//         msg: "Failed to send OTP via SMS.",
+//         data: result,
+//       });
+//     }
+//   } catch (error) {
+//     return res.status(500).send({ msg: error.message, data: null });
+//   }
+// };
+
 const sendOtp = async (req, res) => {
   try {
-    const { mobile, customer } = req.body;
+    const { mobile } = req.body;
 
     if (!mobile) {
       return res.status(400).send({ msg: "Please Enter Mobile Number" });
     }
 
-    const isMobileRegister = await userModel.findOne({ mobile });
+    const user = await userModel.findOne({ mobile });
 
-    if (!isMobileRegister) {
+    if (!user) {
       return res
         .status(400)
         .send({ msg: "You are not registered, Please Register first." });
     }
 
-    // Generate random 4-digit OTP
+    if (!user.email) {
+      return res.status(400).send({ msg: "User email not found." });
+    }
+
+    // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Build the 2Factor SMS API URL
-    const apiKey = "9d49164b-c436-11ef-8b17-0200cd936042";
-    const templateName = "SMSOTPTemplate"; // must match the one on your 2Factor account
-    const senderId = "FITMYC";
+    // Save OTP in otpModel only
+    await otpModel.create({
+      mobile,
+      otp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+    });
 
-    // Prepare customer name for template variable
-    const custName = customer?.split(" ")[0] || "";
-    const smsUrl = `https://2factor.in/API/R1/?module=TRANS_SMS&apikey=${apiKey}&to=${mobile}&from=${senderId}&templatename=${templateName}&var1=${custName}&var2=${otp}`;
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      service: process.env.MAIL_SERVICE,
+      port: Number(process.env.MAIL_PORT),
+      secure: Number(process.env.MAIL_PORT) === 465,
+      auth: {
+        user: process.env.MAIL_USER_EMAIL,
+        pass: process.env.MAIL_USER_PASS,
+      },
+    });
 
-    // Send SMS via fetch (GET request)
-    const response = await fetch(smsUrl);
-    const result = await response.json();
+    const mailOption = {
+      from: `"Refer Cashback" <${process.env.MAIL_USER_EMAIL}>`,
+      to: user.email,
+      subject: "Refer Cashback - OTP for Reset Password",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+          <div style="max-width: 500px; margin: auto; background: #ffffff; padding: 30px; border-radius: 10px; text-align: center;">
+            
+            <img src="https://api.refercashback.com/images/Logo.png"
+                 alt="Company Logo" 
+                 style="width: 140px; margin-bottom: 25px;" />
 
-    if (result.Status === "Success") {
-      await otpModel.create({
-        mobile,
-        otp,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
-      });
+            <h2 style="color: #333;">Password Reset OTP</h2>
+            
+            <p style="font-size: 16px; color: #555;">
+              Use the following OTP to reset your password:
+            </p>
 
-      return res.status(200).send({
-        status: true,
-        msg: "OTP sent successfully.",
-      });
-    } else {
-      return res.status(500).send({
-        status: false,
-        msg: "Failed to send OTP via SMS.",
-        data: result,
-      });
-    }
+            <h1 style="letter-spacing: 6px; color: #2c3e50; margin: 20px 0;">
+              ${otp}
+            </h1>
+
+            <p style="font-size: 14px; color: #888;">
+              This OTP is valid for 5 minutes. Do not share it with anyone.
+            </p>
+
+          </div>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOption);
+
+    return res.status(200).send({
+      status: true,
+      msg: "OTP sent successfully to registered email.",
+    });
   } catch (error) {
-    return res.status(500).send({ msg: error.message, data: null });
+    return res.status(500).send({ msg: error.message });
   }
 };
 
