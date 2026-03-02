@@ -450,7 +450,7 @@ const getUserTransaction = async (req, res) => {
     }
 
     const skip = (pageNumber - 1) * pageLimit;
-
+    const totalCount = await transactionModel.countDocuments(matchStage);
     const pipeline = [
       { $match: matchStage },
 
@@ -595,7 +595,7 @@ const getUserTransaction = async (req, res) => {
         },
       },
     ];
-    const totalCount = await transactionModel.countDocuments(matchStage);
+
     const result = await transactionModel.aggregate(pipeline, {
       allowDiskUse: true,
     });
@@ -617,8 +617,10 @@ const getUserTransaction = async (req, res) => {
       msg: "Transactions retrieved successfully",
       data: finalData,
       pagination: {
-        ...paginated.pagination,
-        totalCount: totalCount, // 👈 added
+        page: pageNumber,
+        limit: pageLimit,
+        totalPages: Math.ceil(totalCount / pageLimit),
+        totalCount: totalCount,
       },
     });
   } catch (error) {
