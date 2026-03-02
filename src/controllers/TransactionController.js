@@ -595,7 +595,7 @@ const getUserTransaction = async (req, res) => {
         },
       },
     ];
-
+    const totalCount = await transactionModel.countDocuments(matchStage);
     const result = await transactionModel.aggregate(pipeline, {
       allowDiskUse: true,
     });
@@ -616,6 +616,10 @@ const getUserTransaction = async (req, res) => {
     return res.status(200).send({
       msg: "Transactions retrieved successfully",
       data: finalData,
+      pagination: {
+        ...paginated.pagination,
+        totalCount: totalCount, // 👈 added
+      },
     });
   } catch (error) {
     console.error("❌ Transaction Error:", error);
