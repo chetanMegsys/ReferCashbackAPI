@@ -229,12 +229,207 @@ const getWalletDetails = async (req, res) => {
 //   }
 // };
 
+// const getUserTransaction = async (req, res) => {
+//   const {
+//     userId,
+//     pageNumber,
+//     pageLimit,
+//     isPagination,
+//     isMonthWise = true,
+//     orderId,
+//     searchText,
+//   } = req.body;
+
+//   try {
+//     const sixMonthsAgo = new Date();
+//     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+//     let matchStage = {
+//       date: { $gte: sixMonthsAgo },
+//     };
+//     if (userId) {
+//       matchStage.userId = new mongoose.Types.ObjectId(userId);
+//     } else if (orderId) {
+//       matchStage.orderId = new mongoose.Types.ObjectId(orderId);
+//     }
+
+//     const result = await transactionModel.aggregate(
+//       [
+//         { $match: matchStage },
+//         {
+//           $lookup: {
+//             from: "orders",
+//             localField: "orderId",
+//             foreignField: "_id",
+//             as: "order",
+//           },
+//         },
+//         { $unwind: { path: "$order", preserveNullAndEmptyArrays: true } },
+
+//         {
+//           $lookup: {
+//             from: "businesses",
+//             localField: "order.businessId",
+//             foreignField: "_id",
+//             as: "business",
+//           },
+//         },
+//         { $unwind: { path: "$business", preserveNullAndEmptyArrays: true } },
+
+//         {
+//           $lookup: {
+//             from: "users",
+//             localField: "order.shopkeeperId",
+//             foreignField: "_id",
+//             as: "shopkeeper",
+//           },
+//         },
+//         { $unwind: { path: "$shopkeeper", preserveNullAndEmptyArrays: true } },
+
+//         {
+//           $lookup: {
+//             from: "users",
+//             localField: "userId",
+//             foreignField: "_id",
+//             as: "customer",
+//           },
+//         },
+//         { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+//         {
+//           $addFields: {
+//             actualDate: {
+//               $ifNull: ["$order.createdAt", "$date"],
+//             },
+//           },
+//         },
+
+//         {
+//           $addFields: {
+//             month: {
+//               $dateToString: {
+//                 format: "%b %Y",
+//                 date: "$actualDate",
+//                 timezone: "Asia/Kolkata",
+//               },
+//             },
+//           },
+//         },
+
+//         { $sort: { actualDate: -1 } },
+
+//         {
+//           $project: {
+//             transactionType: 1,
+//             category: 1,
+//             amount: 1,
+//             narration: 1,
+//             actualDate: 1,
+//             date: 1,
+//             month: 1,
+//             transactionId: 1,
+
+//             "order._id": 1,
+//             "order.amount": 1,
+//             "order.status": 1,
+//             "order.createdAt": 1,
+
+//             "business.businessName": 1,
+//             "business.businessId": 1,
+//             "business.address": 1,
+
+//             "shopkeeper.firstName": 1,
+//             "shopkeeper.lastName": 1,
+//             "shopkeeper.mobile": 1,
+//             "shopkeeper.imageUrl": 1,
+
+//             "customer.firstName": 1,
+//             "customer.lastName": 1,
+//             "customer.mobile": 1,
+//             "customer.imageUrl": 1,
+//           },
+//         },
+//       ],
+//       { allowDiskUse: true },
+//     );
+
+//     // ✅ Date formatter
+//     // const formatTo12Hour = (date) =>
+//     //   new Date(date).toLocaleString("en-IN", {
+//     //     day: "2-digit",
+//     //     month: "2-digit",
+//     //     year: "numeric",
+//     //     hour: "2-digit",
+//     //     minute: "2-digit",
+//     //     hour12: true,
+//     //     timeZone: "Asia/Kolkata",
+//     //   });
+
+//     // 🔹 Pagination applied on flat list
+//     const paginated = paginateArray({
+//       data: result,
+//       page: pageNumber,
+//       limit: pageLimit,
+//       isPagination: isPagination,
+//       search: searchText, // 🔍 from req.body or req.query
+//       searchKeys: [
+//         "narration",
+//         "category",
+//         "transactionType",
+//         "amount",
+//         "transactionId",
+//         "month",
+//         "business.businessName",
+//         "shopkeeper.firstName",
+//         "shopkeeper.lastName",
+//         "shopkeeper.mobile",
+//         "customer.firstName",
+//         "customer.lastName",
+//         "customer.mobile",
+//         "order.status",
+//         "order.amount",
+//         "order.amount",
+//       ],
+//     });
+
+//     let finalData;
+
+//     if (isMonthWise) {
+//       finalData = paginated.data.reduce((acc, t) => {
+//         if (!acc[t.month]) acc[t.month] = [];
+
+//         acc[t.month].push({
+//           ...t,
+//           formattedDate: formatTo12Hour(t.date),
+//         });
+
+//         return acc;
+//       }, {});
+//     } else {
+//       finalData = paginated.data.map((t) => ({
+//         ...t,
+//         formattedDate: formatTo12Hour(t.date),
+//       }));
+//     }
+
+//     return res.status(200).send({
+//       msg: "Transactions retrieved successfully",
+//       data: finalData,
+//       pagination: paginated.pagination,
+//     });
+//   } catch (error) {
+//     console.error("❌ Transaction Error:", error);
+//     return res.status(500).send({
+//       msg: error.message,
+//       data: null,
+//     });
+//   }
+// };
 const getUserTransaction = async (req, res) => {
   const {
     userId,
-    pageNumber,
-    pageLimit,
-    isPagination,
+    pageNumber = 1,
+    pageLimit = 10,
+    isPagination = true,
     isMonthWise = true,
     orderId,
     searchText,
@@ -247,14 +442,32 @@ const getUserTransaction = async (req, res) => {
     let matchStage = {
       date: { $gte: sixMonthsAgo },
     };
+
     if (userId) {
       matchStage.userId = new mongoose.Types.ObjectId(userId);
     } else if (orderId) {
       matchStage.orderId = new mongoose.Types.ObjectId(orderId);
     }
 
-    const result = await transactionModel.aggregate([
+    const skip = (pageNumber - 1) * pageLimit;
+
+    const pipeline = [
       { $match: matchStage },
+
+      // 🔥 Compute actualDate BEFORE sort
+      {
+        $addFields: {
+          actualDate: { $ifNull: ["$date", "$createdAt"] },
+        },
+      },
+
+      // ✅ Sort before heavy lookups
+      { $sort: { actualDate: -1 } },
+
+      // ✅ Apply pagination inside aggregation
+      ...(isPagination ? [{ $skip: skip }, { $limit: pageLimit }] : []),
+
+      // 🔽 NOW do lookups (smaller dataset)
       {
         $lookup: {
           from: "orders",
@@ -294,14 +507,50 @@ const getUserTransaction = async (req, res) => {
         },
       },
       { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          actualDate: {
-            $ifNull: ["$order.createdAt", "$date"],
-          },
-        },
-      },
-
+      // 🔍 Search (AFTER lookups)
+      ...(searchText
+        ? [
+            {
+              $match: {
+                $or: [
+                  { narration: { $regex: searchText, $options: "i" } },
+                  { category: { $regex: searchText, $options: "i" } },
+                  { transactionType: { $regex: searchText, $options: "i" } },
+                  { transactionId: { $regex: searchText, $options: "i" } },
+                  {
+                    "business.businessName": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "shopkeeper.firstName": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "shopkeeper.lastName": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "shopkeeper.mobile": { $regex: searchText, $options: "i" },
+                  },
+                  {
+                    "customer.firstName": { $regex: searchText, $options: "i" },
+                  },
+                  {
+                    "customer.lastName": { $regex: searchText, $options: "i" },
+                  },
+                  { "customer.mobile": { $regex: searchText, $options: "i" } },
+                  { "order.status": { $regex: searchText, $options: "i" } },
+                ],
+              },
+            },
+          ]
+        : []),
       {
         $addFields: {
           month: {
@@ -313,8 +562,6 @@ const getUserTransaction = async (req, res) => {
           },
         },
       },
-
-      { $sort: { actualDate: -1 } },
 
       {
         $project: {
@@ -347,71 +594,28 @@ const getUserTransaction = async (req, res) => {
           "customer.imageUrl": 1,
         },
       },
-    ]);
+    ];
 
-    // ✅ Date formatter
-    // const formatTo12Hour = (date) =>
-    //   new Date(date).toLocaleString("en-IN", {
-    //     day: "2-digit",
-    //     month: "2-digit",
-    //     year: "numeric",
-    //     hour: "2-digit",
-    //     minute: "2-digit",
-    //     hour12: true,
-    //     timeZone: "Asia/Kolkata",
-    //   });
-
-    // 🔹 Pagination applied on flat list
-    const paginated = paginateArray({
-      data: result,
-      page: pageNumber,
-      limit: pageLimit,
-      isPagination: isPagination,
-      search: searchText, // 🔍 from req.body or req.query
-      searchKeys: [
-        "narration",
-        "category",
-        "transactionType",
-        "amount",
-        "transactionId",
-        "month",
-        "business.businessName",
-        "shopkeeper.firstName",
-        "shopkeeper.lastName",
-        "shopkeeper.mobile",
-        "customer.firstName",
-        "customer.lastName",
-        "customer.mobile",
-        "order.status",
-        "order.amount",
-        "order.amount",
-      ],
+    const result = await transactionModel.aggregate(pipeline, {
+      allowDiskUse: true,
     });
 
+    // 🔹 Pagination not needed in JS anymore
     let finalData;
 
     if (isMonthWise) {
-      finalData = paginated.data.reduce((acc, t) => {
+      finalData = result.reduce((acc, t) => {
         if (!acc[t.month]) acc[t.month] = [];
-
-        acc[t.month].push({
-          ...t,
-          formattedDate: formatTo12Hour(t.date),
-        });
-
+        acc[t.month].push(t);
         return acc;
       }, {});
     } else {
-      finalData = paginated.data.map((t) => ({
-        ...t,
-        formattedDate: formatTo12Hour(t.date),
-      }));
+      finalData = result;
     }
 
     return res.status(200).send({
       msg: "Transactions retrieved successfully",
       data: finalData,
-      pagination: paginated.pagination,
     });
   } catch (error) {
     console.error("❌ Transaction Error:", error);

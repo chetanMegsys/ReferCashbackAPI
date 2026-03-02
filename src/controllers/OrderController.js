@@ -907,16 +907,14 @@ const acceptOrRejectOrder = async (req, res) => {
 
       // 🔹 Refund (ORIGINAL narration)
       if (order?.isWalletSelected) {
-        walletPromises.push(
-          updateUserWallet(
-            order.shopkeeperId,
-            order.amount,
-            "customer",
-            true,
-            false,
-          ),
+        await userModel.updateOne(
+          { _id: order.shopkeeperId },
+          {
+            $inc: {
+              "walletDetails.balance": order.amount,
+            },
+          },
         );
-
         allTransactions.push({
           userId: order.shopkeeperId,
           transactionType: "credit",
