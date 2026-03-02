@@ -613,14 +613,18 @@ const getUserTransaction = async (req, res) => {
       finalData = result;
     }
 
+    const totalPages = isPagination ? Math.ceil(totalCount / pageLimit) : 1;
+
     return res.status(200).send({
       msg: "Transactions retrieved successfully",
       data: finalData,
       pagination: {
-        page: pageNumber,
-        limit: pageLimit,
-        totalPages: Math.ceil(totalCount / pageLimit),
-        totalCount: totalCount,
+        page: Number(pageNumber),
+        limit: Number(pageLimit),
+        totalRecords: totalCount,
+        totalPages: totalPages,
+        hasNextPage: Number(pageNumber) < totalPages,
+        hasPrevPage: Number(pageNumber) > 1,
       },
     });
   } catch (error) {
