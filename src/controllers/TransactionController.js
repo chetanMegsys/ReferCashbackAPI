@@ -573,7 +573,7 @@ const getUserTransaction = async (req, res) => {
           date: 1,
           month: 1,
           transactionId: 1,
-
+          formattedDate: 1,
           "order._id": 1,
           "order.amount": 1,
           "order.status": 1,
@@ -606,11 +606,19 @@ const getUserTransaction = async (req, res) => {
     if (isMonthWise) {
       finalData = result.reduce((acc, t) => {
         if (!acc[t.month]) acc[t.month] = [];
-        acc[t.month].push(t);
+
+        acc[t.month].push({
+          ...t,
+          formattedDate: formatTo12Hour(t.actualDate),
+        });
+
         return acc;
       }, {});
     } else {
-      finalData = result;
+      finalData = result.map((t) => ({
+        ...t,
+        formattedDate: formatTo12Hour(t.actualDate),
+      }));
     }
 
     const totalPages = isPagination ? Math.ceil(totalCount / pageLimit) : 1;
