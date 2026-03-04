@@ -1261,7 +1261,7 @@ const getOrdersByMonth = async (req, res) => {
 
           formattedDate: {
             $dateToString: {
-              format: "%d %b %Y",
+              format: "%d %b %Y %H:%M",
               date: "$createdAt",
             },
           },
@@ -1335,10 +1335,16 @@ const getOrdersByMonth = async (req, res) => {
         },
       },
     ]);
-
+    const formattedResult = result.map((item) => ({
+      ...item,
+      orders: item.orders.map((order) => ({
+        ...order,
+        date: formatTo12Hour(order.date),
+      })),
+    }));
     res.status(200).send({
       msg: "Order history fetched successfully",
-      data: result,
+      data: formattedResult,
     });
   } catch (error) {
     console.error(error);
