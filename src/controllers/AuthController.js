@@ -468,6 +468,7 @@ const sendOtp = async (req, res) => {
     return res.status(200).send({
       status: true,
       msg: "OTP sent successfully to registered email.",
+      email: user.email,
     });
   } catch (error) {
     return res.status(500).send({ msg: error.message });
