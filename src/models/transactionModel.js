@@ -42,6 +42,7 @@ const transactionSchema = mongoose.Schema({
       "tieUp",
       "companyProfit",
       "adminCharge",
+      "processingFee",
     ],
     default: "order",
   },

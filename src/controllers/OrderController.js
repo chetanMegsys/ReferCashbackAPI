@@ -697,15 +697,15 @@ const updateUserWallet = async (
             userId,
             transactionType: "debit",
             amount: tdsAmount,
-            category: "adminCharge",
-            narration: `${TDS_PERCENT}% admin charges deducted for ${catagory}`,
+            category: "processingFee",
+            narration: `${TDS_PERCENT}% processing fee deducted for ${catagory}`,
           },
           {
             userId: admin._id,
             transactionType: "credit",
             amount: tdsAmount,
-            category: "adminCharge",
-            narration: `admin charges collected from user ${userId}`,
+            category: "processingFee",
+            narration: `processing fee collected from user ${userId}`,
           },
         ]);
       }
@@ -889,7 +889,7 @@ const acceptOrRejectOrder = async (req, res) => {
           cashbackReceivers.shopkeeper,
           "referral",
           "tieUp",
-          `${userName} Tie up income`,
+          `${userName} Tie up points`,
         );
       }
 

@@ -167,6 +167,7 @@ const getUser = async (req, res) => {
           "walletDetails.balance",
           "walletDetails.cashbackPoints",
           "walletDetails.levelId",
+          "businessDetails.businessName",
         ],
       });
       return res
