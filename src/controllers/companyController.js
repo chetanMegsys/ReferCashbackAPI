@@ -9,6 +9,9 @@ const getCompanyDetails = async (req, res) => {
       minimumBalance: process.env.MINBALANCE,
       androidLink: process.env.ANDROID_LINK,
       contactNo: process.env.CONTACT_NUMBER,
+      upiNo: process.env.UPI_NUMBER,
+      address: process.env.ADDRESS,
+      email: process.env.EMAIL,
     };
     return res
       .status(200)
