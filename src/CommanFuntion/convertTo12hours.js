@@ -1,20 +1,26 @@
 const formatTo12Hour = (dateString) => {
   const date = new Date(dateString);
 
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = date.toLocaleString("en-IN", { month: "short" });
-  const year = date.getFullYear();
+  const options = {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  };
 
-  let hours = date.getHours();
-  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-IN", options).formatToParts(date);
 
-  const ampm = hours >= 12 ? "pm" : "am";
-  hours = hours % 12;
-  hours = hours === 0 ? 12 : hours;
+  const day = parts.find((p) => p.type === "day").value;
+  const month = parts.find((p) => p.type === "month").value;
+  const year = parts.find((p) => p.type === "year").value;
+  const hour = parts.find((p) => p.type === "hour").value;
+  const minute = parts.find((p) => p.type === "minute").value;
+  const ampm = parts.find((p) => p.type === "dayPeriod").value.toLowerCase();
 
-  const formattedHours = String(hours).padStart(2, "0");
-
-  return `${day} ${month} ${year} ${formattedHours}:${minutes}${ampm}`;
+  return `${day} ${month} ${year} ${hour}:${minute}${ampm}`;
 };
 
 module.exports = { formatTo12Hour };
