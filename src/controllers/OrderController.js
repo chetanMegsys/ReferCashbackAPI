@@ -1564,7 +1564,15 @@ const getOrdersForAdmin = async (req, res) => {
       limit: pageLimit,
       isPagination,
       search: searchText,
-      searchKeys: ["amount", "status", "isWalletSelected", "orderId"],
+      searchKeys: [
+        "amount",
+        "status",
+        "isWalletSelected",
+        "orderId",
+        "businessDetails.businessName",
+        "customerDetails.firstName",
+        "customerDetails.lastName",
+      ],
     });
 
     const paginatedWithFormattedDate = {

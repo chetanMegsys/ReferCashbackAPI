@@ -335,7 +335,16 @@ const getWithdrawRequests = async (req, res) => {
         limit: pageLimit,
         isPagination,
         search: searchText,
-        searchKeys: ["amount", "status"],
+        searchKeys: [
+          "amount",
+          "status",
+          "rejectResponse",
+          "mobile",
+          "userDetails.firstName",
+          "userDetails.lastName",
+          "businessDetails.businessName",
+          "paymentMethodDetails.name",
+        ],
       });
 
       const paginatedWithFormattedDate = {
@@ -1056,7 +1065,16 @@ const getDepositRequests = async (req, res) => {
       limit: pageLimit,
       isPagination,
       search: searchText,
-      searchKeys: ["amount", "status"],
+      searchKeys: [
+        "amount",
+        "status",
+        "rejectResponse",
+        "mobile",
+        "userDetails.firstName",
+        "userDetails.lastName",
+        "businessDetails.businessName",
+        "paymentMethodDetails.name",
+      ],
     });
 
     // ==============================
