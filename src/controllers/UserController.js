@@ -8,7 +8,17 @@ const businessModel = require("../models/businessModel");
 const { json } = require("body-parser");
 const { paginateArray } = require("../CommanFuntion/Pagination");
 const { default: mongoose } = require("mongoose");
+let cachedAdmin = null;
 
+const getActiveAdmin = async () => {
+  if (!cachedAdmin) {
+    cachedAdmin = await userModel.findOne({
+      role: "admin",
+      status: "active",
+    });
+  }
+  return cachedAdmin;
+};
 const getUser = async (req, res) => {
   try {
     const { id, role, pageNumber, pageLimit, isPagination, searchText } =
@@ -496,7 +506,94 @@ const dashboardCounts = async (req, res) => {
     const todaysTransactionCount = await transactionModel.countDocuments({
       date: { $gte: todayStart, $lte: todayEnd },
     });
+    const todaysAdminEarningData = await transactionModel.aggregate([
+      {
+        $match: {
+          category: { $in: ["adminCharge", "companyProfit", "processingFee"] },
+          transactionType: "credit", // only incoming money
+          date: { $gte: todayStart, $lte: todayEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAdminEarning: { $sum: "$amount" },
+        },
+      },
+    ]);
 
+    const todaysAdminEarning =
+      todaysAdminEarningData.length > 0
+        ? todaysAdminEarningData[0].totalAdminEarning
+        : 0;
+
+    const thisMonthAdminEarningData = await transactionModel.aggregate([
+      {
+        $match: {
+          category: { $in: ["adminCharge", "companyProfit", "processingFee"] },
+          transactionType: "credit",
+          date: { $gte: monthStart, $lte: now },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAdminEarning: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const thisMonthAdminEarning =
+      thisMonthAdminEarningData.length > 0
+        ? thisMonthAdminEarningData[0].totalAdminEarning
+        : 0;
+    const adminUser = await getActiveAdmin();
+    const todaysAdminTxn = await transactionModel.aggregate([
+      {
+        $match: {
+          userId: adminUser._id, // ✅ only admin
+          date: { $gte: todayStart, $lte: todayEnd },
+        },
+      },
+      {
+        $group: {
+          _id: "$transactionType", // credit / debit
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    let todaysCredit = 0;
+    let todaysDebit = 0;
+
+    todaysAdminTxn.forEach((item) => {
+      if (item._id === "credit") todaysCredit = item.total;
+      if (item._id === "debit") todaysDebit = item.total;
+    });
+    const todaysProfit = todaysCredit - todaysDebit;
+    const monthlyAdminTxn = await transactionModel.aggregate([
+      {
+        $match: {
+          userId: adminUser._id,
+          date: { $gte: monthStart, $lte: now },
+        },
+      },
+      {
+        $group: {
+          _id: "$transactionType",
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    let monthlyCredit = 0;
+    let monthlyDebit = 0;
+
+    monthlyAdminTxn.forEach((item) => {
+      if (item._id === "credit") monthlyCredit = item.total;
+      if (item._id === "debit") monthlyDebit = item.total;
+    });
+    const monthlyProfit = monthlyCredit - monthlyDebit;
     return res.status(200).json({
       success: true,
       dashboardCounts: {
@@ -506,6 +603,10 @@ const dashboardCounts = async (req, res) => {
         totalTransactionCount,
         thisMonthTransactionCount,
         todaysTransactionCount,
+        todaysAdminEarning,
+        thisMonthAdminEarning,
+        monthlyProfit,
+        todaysProfit,
       },
     });
   } catch (error) {

@@ -24,6 +24,11 @@ const transactionSchema = mongoose.Schema({
     ref: "withdrawwalletbalancerequests",
     default: null,
   },
+  depositReuestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "depositWalletBalanceRequests",
+    default: null,
+  },
   category: {
     type: String,
     enum: [
@@ -43,6 +48,7 @@ const transactionSchema = mongoose.Schema({
       "companyProfit",
       "adminCharge",
       "processingFee",
+      "depositRequest"
     ],
     default: "order",
   },

@@ -12,6 +12,10 @@ const getCompanyDetails = async (req, res) => {
       upiNo: process.env.UPI_NUMBER,
       address: process.env.ADDRESS,
       email: process.env.EMAIL,
+      AccountHolder: process.env.ACCOUNT_HOLDER,
+      BankName: process.env.BANK_NAME,
+      AccountNumber: process.env.ACCOUNT_NUMBER,
+      IFSCCode: process.env.IFSC_CODE,
     };
     return res
       .status(200)
