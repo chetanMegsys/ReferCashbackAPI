@@ -506,47 +506,7 @@ const dashboardCounts = async (req, res) => {
     const todaysTransactionCount = await transactionModel.countDocuments({
       date: { $gte: todayStart, $lte: todayEnd },
     });
-    const todaysAdminEarningData = await transactionModel.aggregate([
-      {
-        $match: {
-          category: { $in: ["adminCharge", "companyProfit", "processingFee"] },
-          transactionType: "credit", // only incoming money
-          date: { $gte: todayStart, $lte: todayEnd },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalAdminEarning: { $sum: "$amount" },
-        },
-      },
-    ]);
 
-    const todaysAdminEarning =
-      todaysAdminEarningData.length > 0
-        ? todaysAdminEarningData[0].totalAdminEarning
-        : 0;
-
-    const thisMonthAdminEarningData = await transactionModel.aggregate([
-      {
-        $match: {
-          category: { $in: ["adminCharge", "companyProfit", "processingFee"] },
-          transactionType: "credit",
-          date: { $gte: monthStart, $lte: now },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalAdminEarning: { $sum: "$amount" },
-        },
-      },
-    ]);
-
-    const thisMonthAdminEarning =
-      thisMonthAdminEarningData.length > 0
-        ? thisMonthAdminEarningData[0].totalAdminEarning
-        : 0;
     const adminUser = await getActiveAdmin();
     const todaysAdminTxn = await transactionModel.aggregate([
       {
@@ -603,8 +563,6 @@ const dashboardCounts = async (req, res) => {
         totalTransactionCount,
         thisMonthTransactionCount,
         todaysTransactionCount,
-        todaysAdminEarning,
-        thisMonthAdminEarning,
         monthlyProfit,
         todaysProfit,
       },
