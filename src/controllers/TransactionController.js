@@ -427,8 +427,8 @@ const getWalletDetails = async (req, res) => {
 const getUserTransaction = async (req, res) => {
   const {
     userId,
-    pageNumber = 1,
-    pageLimit = 10,
+    pageNumber = 0,
+    pageLimit = 0,
     isPagination = true,
     isMonthWise = true,
     orderId,
@@ -436,6 +436,7 @@ const getUserTransaction = async (req, res) => {
   } = req.body;
 
   try {
+    // 🔹 Last 6 months filter
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
@@ -449,25 +450,33 @@ const getUserTransaction = async (req, res) => {
       matchStage.orderId = new mongoose.Types.ObjectId(orderId);
     }
 
-    const skip = (pageNumber - 1) * pageLimit;
-    const totalCount = await transactionModel.countDocuments(matchStage);
+    // ✅ Pagination ONLY if enabled
+    const safePage = isPagination
+      ? Math.max(1, Number(pageNumber) || 1)
+      : null;
+
+    const safeLimit = isPagination
+      ? Math.max(1, Number(pageLimit) || 10)
+      : null;
+
+    const skip = isPagination ? (safePage - 1) * safeLimit : 0;
+
+    // 🔹 Aggregation pipeline
     const pipeline = [
       { $match: matchStage },
 
-      // 🔥 Compute actualDate BEFORE sort
       {
         $addFields: {
           actualDate: { $ifNull: ["$date", "$createdAt"] },
         },
       },
 
-      // ✅ Sort before heavy lookups
       { $sort: { actualDate: -1 } },
 
-      // ✅ Apply pagination inside aggregation
-      ...(isPagination ? [{ $skip: skip }, { $limit: pageLimit }] : []),
+      // ✅ Apply pagination only if TRUE
+      ...(isPagination ? [{ $skip: skip }, { $limit: safeLimit }] : []),
 
-      // 🔽 NOW do lookups (smaller dataset)
+      // 🔽 Lookups
       {
         $lookup: {
           from: "orders",
@@ -507,7 +516,8 @@ const getUserTransaction = async (req, res) => {
         },
       },
       { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
-      // 🔍 Search (AFTER lookups)
+
+      // 🔍 Search
       ...(searchText
         ? [
             {
@@ -536,21 +546,42 @@ const getUserTransaction = async (req, res) => {
                     },
                   },
                   {
-                    "shopkeeper.mobile": { $regex: searchText, $options: "i" },
+                    "shopkeeper.mobile": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
                   },
                   {
-                    "customer.firstName": { $regex: searchText, $options: "i" },
+                    "customer.firstName": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
                   },
                   {
-                    "customer.lastName": { $regex: searchText, $options: "i" },
+                    "customer.lastName": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
                   },
-                  { "customer.mobile": { $regex: searchText, $options: "i" } },
-                  { "order.status": { $regex: searchText, $options: "i" } },
+                  {
+                    "customer.mobile": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "order.status": {
+                      $regex: searchText,
+                      $options: "i",
+                    },
+                  },
                 ],
               },
             },
           ]
         : []),
+
+      // 📅 Month field
       {
         $addFields: {
           month: {
@@ -563,6 +594,7 @@ const getUserTransaction = async (req, res) => {
         },
       },
 
+      // 🎯 Projection
       {
         $project: {
           transactionType: 1,
@@ -574,6 +606,7 @@ const getUserTransaction = async (req, res) => {
           month: 1,
           transactionId: 1,
           formattedDate: 1,
+
           "order._id": 1,
           "order.amount": 1,
           "order.status": 1,
@@ -596,11 +629,26 @@ const getUserTransaction = async (req, res) => {
       },
     ];
 
+    // 🔹 Execute aggregation
     const result = await transactionModel.aggregate(pipeline, {
       allowDiskUse: true,
     });
 
-    // 🔹 Pagination not needed in JS anymore
+    // 🔹 Count ONLY if pagination ON
+    let totalRecords = 0;
+
+    if (isPagination) {
+      const countResult = await transactionModel.aggregate([
+        { $match: matchStage },
+        { $count: "count" },
+      ]);
+
+      totalRecords = countResult[0]?.count || 0;
+    } else {
+      totalRecords = result.length;
+    }
+
+    // 🔹 Format data
     let finalData;
 
     if (isMonthWise) {
@@ -621,20 +669,28 @@ const getUserTransaction = async (req, res) => {
       }));
     }
 
-    const totalPages = isPagination ? Math.ceil(totalCount / pageLimit) : 1;
+    const totalPages = isPagination
+      ? Math.ceil(totalRecords / safeLimit)
+      : 1;
 
-    return res.status(200).send({
+    // ✅ Final response
+    const response = {
       msg: "Transactions retrieved successfully",
       data: finalData,
-      pagination: {
-        page: Number(pageNumber),
-        limit: Number(pageLimit),
-        totalRecords: totalCount,
-        totalPages: totalPages,
-        hasNextPage: Number(pageNumber) < totalPages,
-        hasPrevPage: Number(pageNumber) > 1,
-      },
-    });
+    };
+
+    if (isPagination) {
+      response.pagination = {
+        page: safePage,
+        limit: safeLimit,
+        totalRecords,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPrevPage: safePage > 1,
+      };
+    }
+
+    return res.status(200).send(response);
   } catch (error) {
     console.error("❌ Transaction Error:", error);
     return res.status(500).send({

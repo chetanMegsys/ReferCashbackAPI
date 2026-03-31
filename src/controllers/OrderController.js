@@ -774,7 +774,21 @@ const acceptOrRejectOrder = async (req, res) => {
           msg: "You are not eligible to accept this order due to insufficient reward points balance.",
         });
       }
+      if (order?.isWalletSelected) {
+        const userWalletDetails = await getWalletDetails(order?.userId);
 
+        if (!userWalletDetails || userWalletDetails.balance == null) {
+          return res.status(400).send({
+            msg: "Unable to fetch wallet details",
+          });
+        }
+
+        if (Number(userWalletDetails.balance) < Number(amount)) {
+          return res.status(400).send({
+            msg: "Insufficient reward points in customer account",
+          });
+        }
+      }
       const allTransactions = [];
       const walletPromises = [];
 
