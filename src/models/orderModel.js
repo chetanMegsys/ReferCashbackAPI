@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const Counter = require("./counterModel"); // import counter model
 
 const orderSchema = new mongoose.Schema(
   {

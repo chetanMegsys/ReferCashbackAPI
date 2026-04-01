@@ -146,9 +146,78 @@ const withdrawRequest = async (req, res) => {
   }
 };
 
+// const addWalletBalance = async (req, res) => {
+//   try {
+//     const { userId, amount } = req.body;
+//     if (!userId) {
+//       return res.status(400).json({ msg: "UserId is required" });
+//     }
+
+//     if (!amount || amount <= 0) {
+//       return res.status(400).json({ msg: "Valid amount is required" });
+//     }
+
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return res.status(400).json({ msg: "Invalid userId format" });
+//     }
+//     const adminUser = await getActiveAdmin();
+//     const userExists = await userModel
+//       .findOne({
+//         _id: userId,
+//         status: "active",
+//       })
+//       .select("-password -refreshToken");
+//     if (!userExists) {
+//       return res.status(404).json({ msg: "User does not exist" });
+//     }
+
+//     userExists.walletDetails.balance += Number(amount);
+//     adminUser.walletDetails.balance -= Number(amount);
+//     adminUser.walletDetails.depositRequest += Number(amount);
+//     await userExists.save();
+//     await adminUser.save();
+
+//     const transactions = await transactionModel.insertMany([
+//       {
+//         userId: userId,
+//         transactionType: "credit",
+//         orderId: null,
+//         amount,
+//         category: "adminCredit",
+//         narration: "Amount credited by admin",
+//       },
+//       {
+//         userId: adminUser._id,
+//         transactionType: "debit",
+//         orderId: null,
+//         amount,
+//         category: "adminCredit",
+//         narration: `Amount credited to ${userExists.firstName} ${userExists.lastName}`,
+//       },
+//     ]);
+
+//     if (!transactions) {
+//       return res
+//         .status(500)
+//         .json({ msg: "Failed to create transaction record" });
+//     }
+
+//     return res.status(200).json({
+//       msg: "reward points updated successfully",
+//       data: userExists.walletDetails.balance,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       msg: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const addWalletBalance = async (req, res) => {
   try {
     const { userId, amount } = req.body;
+
     if (!userId) {
       return res.status(400).json({ msg: "UserId is required" });
     }
@@ -160,50 +229,75 @@ const addWalletBalance = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ msg: "Invalid userId format" });
     }
+
     const adminUser = await getActiveAdmin();
+
     const userExists = await userModel
-      .findOne({
-        _id: userId,
-        status: "active",
-      })
+      .findOne({ _id: userId, status: "active" })
       .select("-password -refreshToken");
+
     if (!userExists) {
       return res.status(404).json({ msg: "User does not exist" });
     }
 
-    userExists.walletDetails.balance += Number(amount);
-    adminUser.walletDetails.balance -= Number(amount);
-    adminUser.walletDetails.depositRequest += Number(amount);
-    await userExists.save();
-    await adminUser.save();
+    const isSameUser = userId.toString() === adminUser._id.toString();
 
-    const transactions = await transactionModel.insertMany([
-      {
+    // ✅ Only update balances if NOT same
+    if (isSameUser) {
+      adminUser.walletDetails.balance += Number(amount);
+      await adminUser.save();
+    } else {
+      userExists.walletDetails.balance += Number(amount);
+      adminUser.walletDetails.balance -= Number(amount);
+      adminUser.walletDetails.depositRequest += Number(amount);
+
+      await userExists.save();
+      await adminUser.save();
+    }
+
+    // ✅ Transactions (handle differently for same user)
+    let transactions;
+
+    if (isSameUser) {
+      // 👉 Only ONE transaction needed
+      transactions = await transactionModel.create({
         userId: userId,
         transactionType: "credit",
         orderId: null,
         amount,
         category: "adminCredit",
-        narration: "Amount credited by admin",
-      },
-      {
-        userId: adminUser._id,
-        transactionType: "debit",
-        orderId: null,
-        amount,
-        category: "adminCredit",
-        narration: `Amount credited to ${userExists.firstName} ${userExists.lastName}`,
-      },
-    ]);
+        narration: "Self wallet transaction",
+      });
+    } else {
+      // 👉 Normal double entry
+      transactions = await transactionModel.insertMany([
+        {
+          userId: userId,
+          transactionType: "credit",
+          orderId: null,
+          amount,
+          category: "adminCredit",
+          narration: "Amount credited from admin",
+        },
+        {
+          userId: adminUser._id,
+          transactionType: "debit",
+          orderId: null,
+          amount,
+          category: "adminCredit",
+          narration: `Amount credited to ${userExists.firstName} ${userExists.lastName}`,
+        },
+      ]);
+    }
 
     if (!transactions) {
-      return res
-        .status(500)
-        .json({ msg: "Failed to create transaction record" });
+      return res.status(500).json({
+        msg: "Failed to create transaction record",
+      });
     }
 
     return res.status(200).json({
-      msg: "reward points updated successfully",
+      msg: "Wallet processed successfully",
       data: userExists.walletDetails.balance,
     });
   } catch (error) {
