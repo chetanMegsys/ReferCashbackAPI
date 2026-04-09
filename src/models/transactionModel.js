@@ -48,7 +48,8 @@ const transactionSchema = mongoose.Schema({
       "companyProfit",
       "adminCharge",
       "processingFee",
-      "depositRequest"
+      "depositRequest",
+      "adminWallet",
     ],
     default: "order",
   },

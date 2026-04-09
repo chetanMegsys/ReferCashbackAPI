@@ -180,10 +180,22 @@ const login = async (req, res) => {
         .send({ msg: "Please Enter Mobile Number and Password" });
     }
 
-    const user = await userModel.findOne({ mobile, status: "active" });
+    const user = await userModel.findOne({ mobile });
 
     if (!user) {
       return res.status(400).send({ msg: "User does not exist" });
+    }
+
+    if (user.status === "pending") {
+      return res.status(400).send({
+        msg: "Your account is pending for approval. Please wait for admin approval.",
+      });
+    }
+
+    if (user.status === "inactive") {
+      return res.status(400).send({
+        msg: "Your account is inactive.",
+      });
     }
 
     //Password Validation

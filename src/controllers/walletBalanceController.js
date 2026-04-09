@@ -240,10 +240,10 @@ const addWalletBalance = async (req, res) => {
       return res.status(404).json({ msg: "User does not exist" });
     }
 
-    const isSameUser = userId.toString() === adminUser._id.toString();
+    const isAdminUser = userId.toString() === adminUser._id.toString();
 
-    // ✅ Only update balances if NOT same
-    if (isSameUser) {
+    // ✅ Only update balances if NOT admin
+    if (isAdminUser) {
       adminUser.walletDetails.balance += Number(amount);
       await adminUser.save();
     } else {
@@ -255,17 +255,17 @@ const addWalletBalance = async (req, res) => {
       await adminUser.save();
     }
 
-    // ✅ Transactions (handle differently for same user)
+    // ✅ Transactions (handle differently for admin user)
     let transactions;
 
-    if (isSameUser) {
+    if (isAdminUser) {
       // 👉 Only ONE transaction needed
       transactions = await transactionModel.create({
         userId: userId,
         transactionType: "credit",
         orderId: null,
         amount,
-        category: "adminCredit",
+        category: "adminWallet",
         narration: "Self wallet transaction",
       });
     } else {
