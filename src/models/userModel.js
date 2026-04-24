@@ -105,7 +105,7 @@ const userSchema = new mongoose.Schema(
 
     panCardNumber: {
       type: String,
-      required: true,
+      required: false,
       uppercase: true,
       trim: true,
     },
@@ -161,7 +161,7 @@ const userSchema = new mongoose.Schema(
       admiCharge: { type: Number },
       lapIncome: { type: Number },
       monthlyIncome: { type: Number },
-      withdrawRequest: { type: Number},
+      withdrawRequest: { type: Number },
       depositRequest: { type: Number },
     },
   },
