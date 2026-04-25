@@ -121,7 +121,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: false,
       trim: true,
-      unique: true,
     },
     deviceDetails: [
       {

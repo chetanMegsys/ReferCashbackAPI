@@ -123,7 +123,7 @@ const registerUser = async (req, res) => {
       permanentAddress,
       panCardNumber,
       aadhaarCardNumber,
-      rationCardNumber,
+      rationCardNumber: rationCardNumber?.trim() || null,
       permanentPincode: permanentPincode,
       currentPincode: currentPincode,
       status: role === "shopkeeper" ? "pending" : "active",
